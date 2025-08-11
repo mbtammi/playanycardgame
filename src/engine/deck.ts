@@ -90,6 +90,26 @@ export class CardDeck {
     return hands;
   }
 
+  dealAllEvenly(playerCount: number): Card[][] {
+    const hands: Card[][] = [];
+    
+    for (let player = 0; player < playerCount; player++) {
+      hands.push([]);
+    }
+
+    // Deal all cards evenly by dealing one card to each player in turn
+    let currentPlayer = 0;
+    while (this.cards.length > 0) {
+      const dealtCard = this.deal(1)[0];
+      if (dealtCard) {
+        hands[currentPlayer].push(dealtCard);
+        currentPlayer = (currentPlayer + 1) % playerCount;
+      }
+    }
+
+    return hands;
+  }
+
   peek(count: number = 1): Card[] {
     return this.cards.slice(0, count);
   }

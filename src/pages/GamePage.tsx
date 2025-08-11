@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { getBotAction } from '../engine/bot';
 import { motion } from 'framer-motion';
@@ -15,12 +14,12 @@ const GamePage = () => {
   const { setCurrentPage, updateGameState } = useAppStore();
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [message, setMessage] = useState<React.ReactNode>(null);
+  const [isEngineInitialized, setIsEngineInitialized] = useState(false);
   const engineRef = useRef<GameEngine | null>(null);
 
-  // Initialize GameEngine instance on mount or when rules change
-  // Only re-initialize engine if rules or player list change
+  // Only initialize engine when game ID or rules change (not every state update)
   useEffect(() => {
-    if (currentGame) {
+    if (currentGame && !isEngineInitialized) {
       engineRef.current = new GameEngine(currentGame.rules);
       currentGame.players.forEach(p => {
         engineRef.current?.addPlayer(p.name, p.type, p.avatar);
@@ -32,13 +31,18 @@ const GamePage = () => {
           engineRef.current.startGame();
         } catch {}
       }
-      // Always update global state after (re)initialization
+      // Only update if this is the first initialization
       updateGameState(engineRef.current.getGameState());
+      setIsEngineInitialized(true);
+    }
+    
+    // Reset when game changes
+    if (!currentGame) {
+      setIsEngineInitialized(false);
+      engineRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentGame?.rules, JSON.stringify(currentGame?.players)]);
-
-  // Handle custom actions (fallback for unknown action types)
+  }, [currentGame?.id]);
 
   // Helper: get current player
   const getCurrentPlayer = () => {
@@ -46,17 +50,7 @@ const GamePage = () => {
     return currentGame.players[currentGame.currentPlayerIndex];
   };
 
-  // Handle custom actions (fallback for unknown action types)
-  function handleCustomAction(action: string) {
-    if (!engineRef.current || !isUserTurn()) return;
-    const current = getCurrentPlayer();
-    if (!current) return;
-    engineRef.current.executeAction(current.id, action as any, selectedCards);
-    updateGameState(engineRef.current.getGameState());
-    setSelectedCards([]);
-  }
-
-  // Bot turn effect
+  // Bot turn effect: triggers after every turn change (currentPlayerIndex)
   useEffect(() => {
     if (!currentGame || !engineRef.current) return;
     const current = getCurrentPlayer();
@@ -71,7 +65,7 @@ const GamePage = () => {
     }, 800);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentGame]);
+  }, [currentGame?.currentPlayerIndex, currentGame?.gameStatus]);
 
   // Blackjack helpers
   const isBlackjack = currentGame?.rules.id === 'blackjack' || currentGame?.rules.name.toLowerCase().includes('blackjack');
@@ -111,7 +105,7 @@ const GamePage = () => {
     const lastDrawn = (nextState as any).lastDrawnCard;
     let msg: React.ReactNode = result.message;
     if (lastDrawn) {
-      const { symbol, color } = getSuitSymbol(lastDrawn.suit);
+      const { symbol } = getSuitSymbol(lastDrawn.suit);
       msg = (
         <span>
           You drew: <span style={{ color: (lastDrawn.suit === 'hearts' || lastDrawn.suit === 'diamonds') ? '#dc2626' : '#222' }}>{lastDrawn.rank}{symbol}</span>.
@@ -161,6 +155,17 @@ const GamePage = () => {
     const result = engineRef.current.executeAction(player.id, 'pass');
     setMessage(result.message);
     updateGameState(engineRef.current.getGameState());
+  };
+
+  // Handle custom actions (fallback for unknown action types)
+  const handleCustomAction = (action: string) => {
+    if (!engineRef.current) return;
+    const current = getCurrentPlayer();
+    // Only allow human to act on their turn
+    if (!current || current.type !== 'human' || !isUserTurn()) return;
+    engineRef.current.executeAction(current.id, action as any, selectedCards);
+    updateGameState(engineRef.current.getGameState());
+    setSelectedCards([]);
   };
 
   // Card selection
@@ -231,7 +236,14 @@ const GamePage = () => {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Players</h3>
-                <p className="text-gray-600 font-medium">{currentGame.players.length} / {currentGame.rules.players.max}</p>
+                <p className="text-gray-600 font-medium">
+                  {currentGame.players.length} / {currentGame.rules.players.max}
+                  {currentGame.players.length > 1 && (
+                    <span className="ml-2 text-sm">
+                      ({currentGame.players.filter(p => p.type === 'human').length} human, {currentGame.players.filter(p => p.type === 'bot').length} bot)
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
             
@@ -265,116 +277,409 @@ const GamePage = () => {
           className="game-table min-h-[500px] flex flex-col items-center justify-center mb-12 shadow-2xl"
         >
           <GameTable>
-            {/* Turn feedback */}
-            <div className="mb-4 text-center">
-              <span className="inline-block px-4 py-2 rounded-full bg-primary-100 text-primary-700 font-semibold text-lg shadow">
-                {isUserTurn()
-                  ? "Your turn!"
-                  : `${getCurrentPlayer()?.name}'s turn`}
-              </span>
+            {/* Turn feedback - Enhanced for multiplayer */}
+            <div className="mb-6 text-center">
+              <div className="inline-block">
+                <span className="px-6 py-3 rounded-full bg-primary-100 text-primary-700 font-bold text-xl shadow-lg">
+                  {isUserTurn()
+                    ? "🎯 Your turn!"
+                    : `⏳ ${getCurrentPlayer()?.name}'s turn`}
+                </span>
+                {currentGame.players.length > 1 && (
+                  <div className="mt-2 text-sm text-gray-600">
+                    Turn {currentGame.turn} • Round {currentGame.round}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Player hands */}
-            <div className="flex flex-wrap justify-center gap-8 mb-8">
-              {currentGame.players.map((player, idx) => {
-                const isCurrent = currentGame.currentPlayerIndex === idx;
-                // Hide hand for human if keepDrawnCard is false (draw-and-reveal games)
-                const keepDrawn = currentGame.rules?.setup?.keepDrawnCard !== false;
-                if (player.type === 'human' && !keepDrawn) {
-                  return null;
-                }
-                return (
-                  <div key={player.id} className="flex flex-col items-center">
-                    <PlayerHand
-                      playerName={player.name}
-                      isCurrent={isCurrent}
-                      cards={player.hand.map(card => (
-                        <Card
-                          key={card.id}
-                          suit={card.suit}
-                          rank={card.rank}
-                          faceDown={player.type === 'bot' && !player.isActive}
-                          onClick={
-                            isCurrent && player.type === 'human' && isUserTurn()
-                              ? () => toggleCardSelect(card.id)
-                              : undefined
-                          }
-                          selected={selectedCards.includes(card.id)}
-                        />
-                      ))}
-                    />
-                    {/* Blackjack: show hand value and bust status */}
-                    {isBlackjack && (
-                      <div className="mt-2 text-center">
-                        <span className="inline-block px-3 py-1 rounded bg-gray-100 text-gray-800 text-sm font-semibold">
-                          Hand: {handValues[player.id] ?? 0}
-                          {busted[player.id] && (
-                            <span className="ml-2 text-red-600 font-bold">BUSTED</span>
-                          )}
-                          {currentGame.winner === player.id && currentGame.gameStatus === 'finished' && !busted[player.id] && (
-                            <span className="ml-2 text-green-600 font-bold">WINNER</span>
-                          )}
-                        </span>
+            {/* All Players Display */}
+            <div className="w-full mb-8">
+              {/* Current player indicator for multiplayer */}
+              {currentGame.players.length > 1 && (
+                <div className="mb-6 text-center">
+                  <div className="flex justify-center items-center gap-4 flex-wrap">
+                    {currentGame.players.map((player, idx) => (
+                      <div 
+                        key={player.id} 
+                        className={`px-4 py-2 rounded-full transition-all ${
+                          idx === currentGame.currentPlayerIndex 
+                            ? 'bg-primary-600 text-white shadow-lg scale-110' 
+                            : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        <span className="font-semibold">{player.name}</span>
+                        <span className="ml-2 text-sm">({player.hand.length} cards)</span>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Player hands layout */}
+              <div className="flex flex-wrap justify-center gap-8">
+                {currentGame.players.map((player, idx) => {
+                  const isCurrent = currentGame.currentPlayerIndex === idx;
+                  // Show all players for multiplayer games
+                  const isMultiplayer = currentGame.players.length > 1;
+                  const keepDrawn = currentGame.rules?.setup?.keepDrawnCard !== false;
+                  
+                  // For single player games, hide human hand if keepDrawnCard is false
+                  if (!isMultiplayer && player.type === 'human' && !keepDrawn) {
+                    return null;
+                  }
+
+                  return (
+                    <div key={player.id} className="flex flex-col items-center">
+                      <PlayerHand
+                        playerName={player.name}
+                        isCurrent={isCurrent}
+                        cards={player.hand.map(card => {
+                          // Check if this card is playable
+                          const isPlayable = isCurrent && 
+                                           player.type === 'human' && 
+                                           isUserTurn() && 
+                                           engineRef.current?.isValidPlay?.(card.id);
+                          
+                          return (
+                            <div key={card.id} className="relative">
+                              <Card
+                                suit={card.suit}
+                                rank={card.rank}
+                                faceDown={player.type === 'bot' && !isCurrent}
+                                onClick={
+                                  isCurrent && player.type === 'human' && isUserTurn()
+                                    ? () => toggleCardSelect(card.id)
+                                    : undefined
+                                }
+                                selected={selectedCards.includes(card.id)}
+                              />
+                              {/* Show playability indicator for Sevens */}
+                              {isPlayable && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      />
+                      {/* Blackjack: show hand value and bust status */}
+                      {isBlackjack && (
+                        <div className="mt-2 text-center">
+                          <span className="inline-block px-3 py-1 rounded bg-gray-100 text-gray-800 text-sm font-semibold">
+                            Hand: {handValues[player.id] ?? 0}
+                            {busted[player.id] && (
+                              <span className="ml-2 text-red-600 font-bold">BUSTED</span>
+                            )}
+                            {currentGame.winner === player.id && currentGame.gameStatus === 'finished' && !busted[player.id] && (
+                              <span className="ml-2 text-green-600 font-bold">WINNER</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {/* Show card count for multiplayer */}
+                      {isMultiplayer && (
+                        <div className="mt-2 text-center">
+                          <span className="text-sm text-gray-600">
+                            {player.hand.length} cards
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Community Cards/Table Area */}
+            {(currentGame.rules.id === 'sevens') || 
+             (currentGame.communityCards && currentGame.communityCards.length > 0) ? (
+              <div className="flex flex-col items-center mb-12"> {/* Increased bottom margin */}
+                <div className="font-semibold text-gray-700 mb-4 text-lg">Table</div>
+                <div className="bg-green-100 rounded-xl p-8 min-w-96 min-h-40"> {/* Increased padding */}
+                  <div className="grid grid-cols-4 gap-6 justify-items-center"> {/* Increased gap */}
+                    {/* Sevens-specific table display */}
+                    {currentGame.rules.id === 'sevens' && (currentGame as any).table ? (
+                      ['hearts', 'diamonds', 'clubs', 'spades'].map(suit => {
+                        const suitCards = (currentGame as any).table[suit] || [];
+                        const { symbol, color } = getSuitSymbol(suit);
+                        return (
+                          <div key={suit} className="flex flex-col items-center">
+                            <div className={`text-sm font-medium mb-2 capitalize ${color}`}>
+                              {suit} {symbol}
+                            </div>
+                            <div className="flex flex-wrap justify-center gap-1">
+                              {suitCards.length > 0 ? (
+                                (() => {
+                                  // Calculate required width and height for the stack
+                                  const cardWidth = 64; // Standard card width
+                                  const cardHeight = 96; // Standard card height
+                                  const stackWidth = cardWidth + (suitCards.length - 1) * 12; // Base width + spacing
+                                  const stackHeight = cardHeight + (suitCards.length - 1) * 2; // Base height + depth
+                                  
+                                  return (
+                                    <div 
+                                      className="relative"
+                                      style={{ 
+                                        width: `${stackWidth}px`, 
+                                        height: `${stackHeight}px`,
+                                        minHeight: '96px', // Ensure minimum card height
+                                        minWidth: '64px'   // Ensure minimum card width
+                                      }}
+                                    >
+                                      {/* Clean sequence stack for Sevens - cards in a neat line */}
+                                      {suitCards
+                                        .sort((a: any, b: any) => {
+                                          const getValue = (rank: string) => {
+                                            switch (rank) {
+                                              case 'A': return 14;
+                                              case 'K': return 13;
+                                              case 'Q': return 12;
+                                              case 'J': return 11;
+                                              default: return parseInt(rank);
+                                            }
+                                          };
+                                          return getValue(a.rank) - getValue(b.rank);
+                                        })
+                                        .map((card: any, index: number) => (
+                                          <div 
+                                            key={card.id} 
+                                            className="absolute transition-all duration-300 hover:z-50 hover:scale-110"
+                                            style={{ 
+                                              left: `${index * 12}px`, // Clean horizontal spacing
+                                              top: `${index * 2}px`,   // Slight vertical offset for depth
+                                              zIndex: index + 1,
+                                              transform: `rotate(${index * 0.5}deg)` // Very subtle rotation for realism
+                                            }}
+                                          >
+                                            <Card suit={card.suit} rank={card.rank} />
+                                          </div>
+                                        ))}
+                                    </div>
+                                  );
+                                })()
+                              ) : (
+                                <div className="w-16 h-24 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 text-xs">
+                                  Empty
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      /* Generic community cards display for other games - messy pile style */
+                      ['hearts', 'diamonds', 'clubs', 'spades'].map(suit => {
+                        const suitCards = currentGame.communityCards.filter(card => card.suit === suit);
+                        return (
+                          <div key={suit} className="flex flex-col items-center">
+                            <div className="text-sm font-medium text-gray-600 mb-2 capitalize">{suit}</div>
+                            <div className="flex flex-wrap justify-center gap-1">
+                              {suitCards.length > 0 ? (
+                                (() => {
+                                  // Calculate required size for messy pile (more generous for random positioning)
+                                  const cardWidth = 64;
+                                  const cardHeight = 96;
+                                  const pileWidth = cardWidth + 40; // Extra space for random positioning
+                                  const pileHeight = cardHeight + (suitCards.length * 3) + 16; // Stack height + random offset
+                                  
+                                  return (
+                                    <div 
+                                      className="relative flex justify-center"
+                                      style={{ 
+                                        width: `${pileWidth}px`, 
+                                        height: `${pileHeight}px`,
+                                        minHeight: '96px',
+                                        minWidth: '80px'
+                                      }}
+                                    >
+                                      {/* Messy pile stack - random positioning for casual games */}
+                                      {suitCards
+                                        .sort((a, b) => {
+                                          const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+                                          return ranks.indexOf(a.rank) - ranks.indexOf(b.rank);
+                                        })
+                                        .map((card, index) => {
+                                          // Create controlled "randomness" based on card ID for consistency
+                                          const seed = card.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                                          const randomX = (seed % 20) - 10; // -10 to +10 px
+                                          const randomY = (seed % 16) - 8;  // -8 to +8 px
+                                          const randomRotation = (seed % 30) - 15; // -15 to +15 degrees
+                                          
+                                          return (
+                                            <div 
+                                              key={card.id} 
+                                              className="absolute transition-all duration-300 hover:z-50 hover:scale-110"
+                                              style={{ 
+                                                left: `${20 + randomX}px`, // Center + random offset
+                                                top: `${index * 3 + randomY}px`, // Stack height + random offset
+                                                zIndex: index + 1,
+                                                transform: `rotate(${randomRotation}deg)`
+                                              }}
+                                            >
+                                              <Card suit={card.suit} rank={card.rank} />
+                                            </div>
+                                          );
+                                        })}
+                                    </div>
+                                  );
+                                })()
+                              ) : (
+                                <div className="w-16 h-24 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 text-xs">
+                                  Empty
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              </div>
+            ) : null}
 
             {/* Card stack (discard pile) for draw-and-reveal games */}
-            {currentGame.discardPile && currentGame.discardPile.length > 0 && (
+            {currentGame.discardPile && currentGame.discardPile.length > 0 && !currentGame.communityCards?.length && (
               <div className="flex flex-col items-center mb-8">
                 <div className="font-semibold text-gray-700 mb-2">Drawn Cards</div>
-                <div className="flex flex-row items-end justify-center" style={{ minHeight: 60 }}>
-                  {currentGame.discardPile.map((card, i) => (
-                    <div
-                      key={card.id}
-                      style={{
-                        marginLeft: i === 0 ? 0 : -32, // overlap
-                        zIndex: i,
-                        position: 'relative',
-                        boxShadow: i === currentGame.discardPile.length - 1 ? '0 4px 12px rgba(0,0,0,0.15)' : undefined,
-                        transition: 'box-shadow 0.2s',
-                      }}
-                    >
-                      <Card suit={card.suit} rank={card.rank} />
-                    </div>
-                  ))}
+                <div 
+                  className="relative flex justify-center" 
+                  style={{ 
+                    width: '128px', // Fixed width to contain the messy pile
+                    height: `${96 + currentGame.discardPile.length * 2 + 16}px`, // Card height + stack + random offset space
+                    minHeight: '96px' // Minimum card height
+                  }}
+                >
+                  {/* Messy pile for discard - only top card matters */}
+                  {currentGame.discardPile.map((card, i) => {
+                    // Create controlled "randomness" for messy pile effect
+                    const seed = card.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const randomX = (seed % 24) - 12; // -12 to +12 px
+                    const randomY = (seed % 16) - 8;  // -8 to +8 px
+                    const randomRotation = (seed % 40) - 20; // -20 to +20 degrees (more chaotic)
+                    
+                    return (
+                      <div
+                        key={card.id}
+                        className="absolute transition-all duration-300"
+                        style={{
+                          left: `${64 + randomX}px`, // Center (64px from left) + random offset
+                          top: `${i * 2 + randomY}px`, // Small stack height + random
+                          zIndex: i + 1,
+                          transform: `rotate(${randomRotation}deg)`,
+                          boxShadow: i === currentGame.discardPile.length - 1 ? '0 8px 24px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
+                        }}
+                      >
+                        <Card suit={card.suit} rank={card.rank} />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* Action buttons for current player */}
-            <div className="flex flex-wrap gap-4 justify-center mb-4">
-            {engineRef.current && isUserTurn() && currentGame.gameStatus === 'active' && (
-                engineRef.current.getValidActionsForCurrentPlayer().map(action => {
-                  switch (action) {
-                    case 'draw':
-                      return (
-                        <button key="draw" className="btn-primary px-6 py-2" onClick={handleDraw}>Draw</button>
-                      );
-                    case 'discard':
-                      return (
-                        <button key="discard" className="btn-primary px-6 py-2" onClick={handleDiscard} disabled={selectedCards.length !== 1}>Discard</button>
-                      );
-                    case 'pass':
-                      return (
-                        <button key="pass" className="btn-secondary px-6 py-2" onClick={handlePass}>Pass</button>
-                      );
-                    default:
-                      // If this is the play action, show as Play button
-                      if (action === getPlayActionName()) {
+            {/* Action buttons for current player (only show for human's turn) */}
+            <div className="flex flex-wrap gap-4 justify-center mb-6">
+              {engineRef.current && isUserTurn() && currentGame.gameStatus === 'active' && (
+                <>
+                  {/* Show intelligent hints for Sevens */}
+                  {currentGame.rules.id === 'sevens' && (
+                    <div className="w-full text-center mb-2">
+                      {(() => {
+                        const table = (currentGame as any).table || {};
+                        const totalCardsOnTable = Object.values(table).reduce((sum: number, suitCards: any) => sum + suitCards.length, 0);
+                        
+                        if (totalCardsOnTable === 0) {
+                          return (
+                            <span className="text-sm text-gray-600 bg-red-50 px-3 py-1 rounded-full">
+                              🎯 First move: Play the 7 of diamonds to start!
+                            </span>
+                          );
+                        } else {
+                          const currentPlayer = getCurrentPlayer();
+                          const hasValidMove = currentPlayer && engineRef.current?.hasValidSevensMove?.(currentPlayer.id);
+                          
+                          if (hasValidMove) {
+                            return (
+                              <span className="text-sm text-gray-600 bg-green-50 px-3 py-1 rounded-full">
+                                💡 You can play a 7 or build up/down from existing cards
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className="text-sm text-gray-600 bg-yellow-50 px-3 py-1 rounded-full">
+                                ⚠️ No valid moves - you must pass
+                              </span>
+                            );
+                          }
+                        }
+                      })()}
+                    </div>
+                  )}
+                  
+                  {engineRef.current.getValidActionsForCurrentPlayer().map(action => {
+                    switch (action) {
+                      case 'draw':
                         return (
-                          <button key={action} className="btn-primary px-6 py-2" onClick={handlePlay} disabled={selectedCards.length === 0}>Play</button>
+                          <button key="draw" className="btn-primary px-8 py-3 text-lg font-semibold" onClick={handleDraw}>
+                            🃏 Draw Card
+                          </button>
                         );
-                      }
-                      // Otherwise, show as generic custom action
-                      return (
-                        <button key={action} className="btn-primary px-6 py-2" onClick={() => handleCustomAction(action)}>{action}</button>
-                      );
-                  }
-                })
+                      case 'discard':
+                        return (
+                          <button 
+                            key="discard" 
+                            className="btn-primary px-8 py-3 text-lg font-semibold" 
+                            onClick={handleDiscard} 
+                            disabled={selectedCards.length !== 1}
+                          >
+                            🗑️ Discard ({selectedCards.length}/1)
+                          </button>
+                        );
+                      case 'pass':
+                        return (
+                          <button key="pass" className="btn-secondary px-8 py-3 text-lg font-semibold" onClick={handlePass}>
+                            ⏭️ Pass Turn
+                          </button>
+                        );
+                      default:
+                        // If this is the play action, show as Play button
+                        if (action === getPlayActionName()) {
+                          return (
+                            <button 
+                              key={action} 
+                              className="btn-primary px-8 py-3 text-lg font-semibold" 
+                              onClick={handlePlay} 
+                              disabled={selectedCards.length === 0}
+                            >
+                              🎴 Play Cards ({selectedCards.length})
+                            </button>
+                          );
+                        }
+                        // Otherwise, show as generic custom action
+                        return (
+                          <button 
+                            key={action} 
+                            className="btn-primary px-8 py-3 text-lg font-semibold" 
+                            onClick={() => handleCustomAction(action)}
+                          >
+                            ⚡ {action}
+                          </button>
+                        );
+                    }
+                  })}
+                </>
+              )}
+              
+              {/* Show waiting message for non-current players */}
+              {!isUserTurn() && currentGame.gameStatus === 'active' && currentGame.players.length > 1 && (
+                <div className="text-center">
+                  <span className="px-6 py-3 rounded-full bg-gray-100 text-gray-600 font-medium">
+                    ⏳ Waiting for {getCurrentPlayer()?.name}...
+                  </span>
+                </div>
               )}
             </div>
 

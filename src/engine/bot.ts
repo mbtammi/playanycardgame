@@ -28,9 +28,68 @@ export function getBotAction(gameState: GameState, rules: GameRules, botId: stri
     return { action: 'pass' };
   }
 
+  // Sevens bot logic
+  if (rules.id === 'sevens') {
+    const bot = gameState.players.find(p => p.id === botId);
+    if (!bot || bot.hand.length === 0) {
+      return { action: 'pass' };
+    }
+    
+    const table = (gameState as any).table || {};
+    const totalCardsOnTable = Object.values(table).reduce((sum: number, suitCards: any) => sum + suitCards.length, 0);
+    
+    // First move: Must play 7 of diamonds if we have it
+    if (totalCardsOnTable === 0) {
+      const sevenOfDiamonds = bot.hand.find(card => card.rank === '7' && card.suit === 'diamonds');
+      if (sevenOfDiamonds) {
+        return { action: 'play', cardIds: [sevenOfDiamonds.id] };
+      }
+      // If we don't have 7 of diamonds, we must pass (this shouldn't happen if game setup is correct)
+      return { action: 'pass' };
+    }
+    
+    // After first move: Priority order for playing cards
+    
+    // 1. First priority: Play any 7s to open new suits
+    const sevens = bot.hand.filter(card => card.rank === '7');
+    if (sevens.length > 0) {
+      return { action: 'play', cardIds: [sevens[0].id] };
+    }
+    
+    // 2. Second priority: Play cards that build on existing sequences
+    for (const card of bot.hand) {
+      const suitCards = table[card.suit] || [];
+      if (suitCards.length === 0) continue; // Can't play if no 7 in this suit yet
+      
+      // Check if this card can be played
+      const cardValue = getCardNumericValue(card.rank);
+      const suitValues = suitCards.map((c: any) => getCardNumericValue(c.rank)).sort((a: number, b: number) => a - b);
+      const minValue = Math.min(...suitValues);
+      const maxValue = Math.max(...suitValues);
+      
+      if (cardValue === minValue - 1 || cardValue === maxValue + 1) {
+        return { action: 'play', cardIds: [card.id] };
+      }
+    }
+    
+    // No valid moves, must pass
+    return { action: 'pass' };
+  }
+
   // Default: pick the first available action (custom or built-in)
   if (rules.actions && rules.actions.length > 0) {
     return { action: rules.actions[0] };
   }
   return { action: 'pass' };
+}
+
+// Helper function for card values (same as in GameEngine)
+function getCardNumericValue(rank: string): number {
+  switch (rank) {
+    case 'A': return 14; // Aces are high in Sevens
+    case 'K': return 13;
+    case 'Q': return 12;
+    case 'J': return 11;
+    default: return parseInt(rank);
+  }
 }

@@ -10,7 +10,7 @@ const sevensRules: GameRules = {
     recommended: 4,
   },
   setup: {
-    cardsPerPlayer: 0, // Will be dealt evenly from the deck
+    cardsPerPlayer: 0, // Special value: deal all cards evenly among players
     deckSize: 52,
   },
   objective: {
@@ -36,7 +36,9 @@ const sevensRules: GameRules = {
   ],
   specialRules: [
     'The player with the 7 of diamonds starts by playing it to the center.',
-    'Players can only play a 7 or build up/down from a 7 in the same suit (e.g., 6♠, 8♠, etc.).',
+    'Players can only play a 7 or build up/down from a 7 in the same suit (e.g., 6♠, 8♠, etc.). But number 6 must be played before 8.',
+    'After the first 7 of diamonds is played, the next player can play a 7 of any suit.',
+    'After playing the final card, being 2 or Ace you can play another card if you can play it.',
     'If you cannot play, you must pass.',
     'You cannot pass if you have a legal move.',
     'Aces are high.',

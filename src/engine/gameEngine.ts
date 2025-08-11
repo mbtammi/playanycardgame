@@ -107,10 +107,17 @@ export class GameEngine {
     this.deck.shuffle();
 
     // Deal initial hands
-    const hands = this.deck.dealHand(
-      this.state.players.length,
-      this.state.rules.setup.cardsPerPlayer
-    );
+    let hands: Card[][];
+    if (this.state.rules.setup.cardsPerPlayer === 0) {
+      // Deal all cards evenly among players
+      hands = this.deck.dealAllEvenly(this.state.players.length);
+    } else {
+      // Deal specific number of cards per player
+      hands = this.deck.dealHand(
+        this.state.players.length,
+        this.state.rules.setup.cardsPerPlayer
+      );
+    }
 
     // Assign hands to players
     this.state.players.forEach((player, index) => {
@@ -120,6 +127,11 @@ export class GameEngine {
         (this.state as any).busted[player.id] = false;
       }
     });
+
+    // Game-specific initialization
+    if (this.state.rules.id === 'sevens') {
+      this.initializeSevensGame();
+    }
 
     // Set first player as active
     this.state.players[0].isActive = true;
@@ -164,7 +176,15 @@ export class GameEngine {
     }
     if (action === 'play') {
       if (!cards || cards.length === 0) return false;
-      return cards.every(cardId => player.hand.some(card => card.id === cardId));
+      const hasCards = cards.every(cardId => player.hand.some(card => card.id === cardId));
+      if (!hasCards) return false;
+      
+      // Game-specific validation
+      if (this.state.rules.id === 'sevens') {
+        return cards.length === 1 && this.isValidSevensPlay(cards[0]);
+      }
+      
+      return true;
     }
     if (action === 'playToTable') {
       if (!cards || cards.length !== 1) return false;
@@ -176,19 +196,6 @@ export class GameEngine {
     }
     // For custom actions, always allow (unless you want to add custom validation)
     return true;
-  }
-
-  /**
-   * Returns a list of valid actions for the current player and phase, for UI use.
-   */
-  getValidActionsForCurrentPlayer(): GameAction[] {
-    const player = this.getCurrentPlayer();
-    if (!player || !player.isActive) return [];
-    const currentPhase = this.state.currentPhase || 'playing';
-    const phaseObj = this.state.rules.turnStructure?.phases?.find(phase => phase.name === currentPhase);
-    const allowedActions = phaseObj?.actions || this.state.rules.actions;
-    // Filter actions by isValidAction
-    return (allowedActions as GameAction[]).filter(action => this.isValidAction(player.id, action));
   }
 
   executeAction(playerId: string, action: GameAction, cardIds?: string[], target?: string, tableTarget?: any): GameActionResult {
@@ -207,9 +214,16 @@ export class GameEngine {
     const player = this.state.players.find(p => p.id === playerId)!;
     let message = '';
     try {
-      // --- Dynamic schema-driven action handling ---
-      // If the action is in the schema and a card is provided, treat as play (remove from hand, add to community)
-      if (cardIds && cardIds.length > 0) {
+      // === GAME-SPECIFIC HANDLING ===
+      if (this.state.rules.id === 'sevens' && action === 'play' && cardIds && cardIds.length === 1) {
+        // Special handling for Sevens gameplay
+        if (!this.isValidSevensPlay(cardIds[0])) {
+          throw new Error('Invalid Sevens move. You can only play a 7 or a card adjacent to existing cards in the same suit.');
+        }
+        message = this.executeSevensPlay(player, cardIds[0]);
+      }
+      // === GENERIC HANDLING ===
+      else if (cardIds && cardIds.length > 0) {
         // Remove cards from hand and add to community pile
         const cardsToPlay = cardIds.map(id => {
           const cardIndex = player.hand.findIndex(card => card.id === id);
@@ -471,5 +485,160 @@ export class GameEngine {
         } as Card))
       }))
     };
+  }
+
+  // ===== SEVENS GAME SPECIFIC METHODS =====
+  
+  private initializeSevensGame(): void {
+    // Initialize the table structure for Sevens
+    // Table will store cards organized by suit: { hearts: [], diamonds: [], clubs: [], spades: [] }
+    (this.state as any).table = {
+      hearts: [],
+      diamonds: [],
+      clubs: [],
+      spades: []
+    };
+    
+    // Find who has the 7 of diamonds to start first
+    let startingPlayerIndex = 0;
+    for (let i = 0; i < this.state.players.length; i++) {
+      const has7OfDiamonds = this.state.players[i].hand.some(card => 
+        card.rank === '7' && card.suit === 'diamonds'
+      );
+      if (has7OfDiamonds) {
+        startingPlayerIndex = i;
+        break;
+      }
+    }
+    
+    // Set the player with 7 of diamonds as the current player
+    this.state.players.forEach(p => p.isActive = false);
+    this.state.players[startingPlayerIndex].isActive = true;
+    this.state.currentPlayerIndex = startingPlayerIndex;
+  }
+  
+  // Public method to check if a specific card can be played
+  isValidPlay(cardId: string): boolean {
+    if (this.state.rules.id === 'sevens') {
+      return this.isValidSevensPlay(cardId);
+    }
+    // For other games, use general validation
+    const player = this.getCurrentPlayer();
+    if (!player) return false;
+    return this.isValidAction(player.id, 'play', [cardId]);
+  }
+
+  private isValidSevensPlay(cardId: string): boolean {
+    const card = this.state.players
+      .flatMap(p => p.hand)
+      .find(c => c.id === cardId);
+    
+    if (!card) return false;
+    
+    const table = (this.state as any).table || {};
+    
+    // Check if any cards have been played yet (is this the very first move?)
+    const totalCardsOnTable = Object.values(table).reduce((sum: number, suitCards: any) => sum + suitCards.length, 0);
+    
+    // FIRST MOVE: Must be 7 of diamonds
+    if (totalCardsOnTable === 0) {
+      return card.rank === '7' && card.suit === 'diamonds';
+    }
+    
+    // AFTER FIRST MOVE: Can play any 7 to start a new suit
+    if (card.rank === '7') {
+      return true;
+    }
+    
+    // BUILDING: Can only play cards adjacent to existing cards in the same suit
+    const suitCards = table[card.suit] || [];
+    
+    // If no 7 is played in this suit yet, can't play other cards
+    if (suitCards.length === 0) return false;
+    
+    // Check if card can be played adjacent to existing cards
+    const cardValue = this.getCardNumericValue(card.rank);
+    const suitValues = suitCards.map((c: Card) => this.getCardNumericValue(c.rank)).sort((a: number, b: number) => a - b);
+    
+    // Can play if it's one higher than the highest or one lower than the lowest
+    const minValue = Math.min(...suitValues);
+    const maxValue = Math.max(...suitValues);
+    
+    return cardValue === minValue - 1 || cardValue === maxValue + 1;
+  }
+  
+  private getCardNumericValue(rank: string): number {
+    switch (rank) {
+      case 'A': return 14; // Aces are high in Sevens
+      case 'K': return 13;
+      case 'Q': return 12;
+      case 'J': return 11;
+      default: return parseInt(rank);
+    }
+  }
+  
+  private executeSevensPlay(player: Player, cardId: string): string {
+    const cardIndex = player.hand.findIndex(card => card.id === cardId);
+    if (cardIndex === -1) {
+      throw new Error(`Player doesn't have card ${cardId}`);
+    }
+    
+    const card = player.hand.splice(cardIndex, 1)[0];
+    const table = (this.state as any).table || {};
+    
+    if (!table[card.suit]) {
+      table[card.suit] = [];
+    }
+    
+    table[card.suit].push(card);
+    
+    // Sort the suit cards by value to maintain order
+    table[card.suit].sort((a: Card, b: Card) => 
+      this.getCardNumericValue(a.rank) - this.getCardNumericValue(b.rank)
+    );
+    
+    return `${player.name} played ${card.rank}${this.getSuitSymbol(card.suit)}`;
+  }
+
+  // Helper method to check if a player has any valid Sevens moves
+  hasValidSevensMove(playerId: string): boolean {
+    const player = this.state.players.find(p => p.id === playerId);
+    if (!player) return false;
+    
+    // Check each card in hand
+    for (const card of player.hand) {
+      if (this.isValidSevensPlay(card.id)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Enhanced method to get valid actions that considers game rules
+  getValidActionsForCurrentPlayer(): GameAction[] {
+    const player = this.getCurrentPlayer();
+    if (!player || !player.isActive) return [];
+    
+    const currentPhase = this.state.currentPhase || 'playing';
+    const phaseObj = this.state.rules.turnStructure?.phases?.find(phase => phase.name === currentPhase);
+    const allowedActions = phaseObj?.actions || this.state.rules.actions;
+    
+    // For Sevens, be more intelligent about available actions
+    if (this.state.rules.id === 'sevens') {
+      const actions: GameAction[] = [];
+      
+      // Check if player can play any cards
+      if (this.hasValidSevensMove(player.id)) {
+        actions.push('play');
+      }
+      
+      // Player can always pass (but shouldn't if they have valid moves)
+      actions.push('pass');
+      
+      return actions as GameAction[];
+    }
+    
+    // For other games, use original logic
+    return (allowedActions as GameAction[]).filter(action => this.isValidAction(player.id, action));
   }
 }
