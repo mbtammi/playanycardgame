@@ -177,63 +177,160 @@ const GamePage = () => {
 
   if (!currentGame) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6">
-        <div className="text-center">
-          <div className="card p-12 lg:p-16 shadow-2xl max-w-md mx-auto">
-            <div className="text-6xl mb-8">🎯</div>
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center">
+        <div className="w-4/5 mx-auto"> {/* 80% width container */}
+        {/* Floating background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <motion.div
+            animate={{ 
+              y: [0, -20, 0],
+              rotate: [0, 5, 0]
+            }}
+            transition={{ 
+              duration: 6,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="absolute top-32 left-16 w-24 h-24 bg-green-200/30 rounded-full blur-xl"
+          />
+          <motion.div
+            animate={{ 
+              y: [0, 30, 0],
+              x: [0, 10, 0]
+            }}
+            transition={{ 
+              duration: 8,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="absolute bottom-40 right-20 w-32 h-32 bg-emerald-200/20 rounded-full blur-2xl"
+          />
+        </div>
+
+        <div className="text-center relative">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6 }}
+            className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 lg:p-16 shadow-2xl max-w-md mx-auto border border-green-100/50"
+          >
+            <motion.div 
+              className="text-6xl mb-8"
+              animate={{ 
+                rotate: [0, -10, 10, 0],
+                scale: [1, 1.1, 1]
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            >
+              🎯
+            </motion.div>
             <h2 className="text-3xl font-bold text-gray-900 mb-6">No Game Selected</h2>
             <p className="text-gray-600 mb-8 leading-relaxed">
               It looks like you haven't selected a game to play. Let's get you back to the examples!
             </p>
             <motion.button
               onClick={handleBack}
-              className="btn-primary text-lg px-8 py-4 shadow-lg"
-              whileHover={{ scale: 1.05, y: -2 }}
+              className="btn-primary text-lg px-8 py-4 shadow-xl hover:shadow-2xl"
+              whileHover={{ 
+                scale: 1.05, 
+                y: -3,
+                boxShadow: "0 25px 50px -12px rgba(34, 197, 94, 0.4)"
+              }}
               whileTap={{ scale: 0.95 }}
             >
               Go Back to Examples
             </motion.button>
-          </div>
+          </motion.div>
         </div>
+        </div> {/* Close 80% width container */}
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen py-12 px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50">
+      <div className="w-4/5 mx-auto py-8"> {/* 80% width container */}
+      {/* Floating background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          animate={{ 
+            y: [0, -25, 0],
+            rotate: [0, 8, 0]
+          }}
+          transition={{ 
+            duration: 9,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute top-20 right-12 w-28 h-28 bg-blue-200/20 rounded-full blur-xl"
+        />
+        <motion.div
+          animate={{ 
+            y: [0, 35, 0],
+            x: [0, -20, 0]
+          }}
+          transition={{ 
+            duration: 11,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute bottom-32 left-16 w-36 h-36 bg-green-200/15 rounded-full blur-2xl"
+        />
+      </div>
+
+      <div className="max-w-3xl mx-auto relative">{/* Reduced from max-w-5xl */}
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-12"
+          transition={{ duration: 0.6 }}
+          className="flex items-center justify-between mb-8"
         >
-          <button
+          <motion.button
             onClick={handleBack}
-            className="flex items-center gap-2 text-primary-600 hover:text-primary-700 font-semibold group transition-colors"
+            className="flex items-center gap-2 text-green-600 hover:text-green-700 font-semibold group transition-colors bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full border border-green-200/50 shadow-lg hover:shadow-xl"
+            whileHover={{ scale: 1.05, x: -5 }}
+            whileTap={{ scale: 0.95 }}
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             Back to Examples
-          </button>
+          </motion.button>
           
-          <div className="text-right">
+          <motion.div 
+            className="text-right"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+          >
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">{currentGame.rules.name}</h1>
             <p className="text-xl text-gray-600 font-medium">Turn {currentGame.turn} • Round {currentGame.round}</p>
-          </div>
+          </motion.div>
         </motion.div>
 
         {/* Game Info */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="card p-8 lg:p-10 mb-12 shadow-xl"
+          transition={{ delay: 0.1, duration: 0.6 }}
+          whileHover={{ y: -3 }}
+          className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 lg:p-10 mb-12 shadow-xl border border-green-100/50 hover:shadow-2xl transition-all duration-500"
         >
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="flex items-center gap-4 group">
-              <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Users className="w-6 h-6 text-primary-600" />
-              </div>
+            <motion.div 
+              className="flex items-center gap-4 group"
+              whileHover={{ scale: 1.02 }}
+            >
+              <motion.div 
+                className="w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl flex items-center justify-center"
+                whileHover={{ rotate: 360 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Users className="w-6 h-6 text-green-600" />
+              </motion.div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Players</h3>
                 <p className="text-gray-600 font-medium">
@@ -245,27 +342,41 @@ const GamePage = () => {
                   )}
                 </p>
               </div>
-            </div>
+            </motion.div>
             
-            <div className="flex items-center gap-4 group">
-              <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Target className="w-6 h-6 text-primary-600" />
-              </div>
+            <motion.div 
+              className="flex items-center gap-4 group"
+              whileHover={{ scale: 1.02 }}
+            >
+              <motion.div 
+                className="w-12 h-12 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-2xl flex items-center justify-center"
+                whileHover={{ rotate: 360 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Target className="w-6 h-6 text-blue-600" />
+              </motion.div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Objective</h3>
                 <p className="text-gray-600">{currentGame.rules.objective.description}</p>
               </div>
-            </div>
+            </motion.div>
             
-            <div className="flex items-center gap-4 group">
-              <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Shuffle className="w-6 h-6 text-primary-600" />
-              </div>
+            <motion.div 
+              className="flex items-center gap-4 group"
+              whileHover={{ scale: 1.02 }}
+            >
+              <motion.div 
+                className="w-12 h-12 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl flex items-center justify-center"
+                whileHover={{ rotate: 360 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Shuffle className="w-6 h-6 text-purple-600" />
+              </motion.div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Status</h3>
                 <p className="text-gray-600 capitalize font-medium">{currentGame.gameStatus}</p>
               </div>
-            </div>
+            </motion.div>
           </div>
         </motion.div>
 
@@ -794,6 +905,7 @@ const GamePage = () => {
           </div>
         </motion.div>
       </div>
+      </div> {/* Close 80% width container */}
     </div>
   );
 };
