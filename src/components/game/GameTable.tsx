@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Card as CardType } from '../../types';
 import Card from './Card';
+import './GameTable.css';
 
 interface GameTableProps {
   table?: Record<string, CardType[]>;
@@ -12,14 +13,14 @@ interface GameTableProps {
 const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
 
 const GameTable: React.FC<GameTableProps> = ({ table, onPlayToTable, selectableCard, children }) => (
-  <div className="game-table w-full max-w-4xl mx-auto my-8 p-8 rounded-2xl shadow-2xl bg-gradient-to-br from-green-100 to-green-200 border border-green-200 relative flex flex-col items-center justify-center min-h-[400px]">
+  <div className="game-table">
     {/* Flexible table visualization if table prop is provided */}
     {table ? (
-      <div className="grid grid-cols-4 gap-8 w-full mb-8">
+      <div className="table-grid">
         {suits.map((suit) => (
-          <div key={suit} className="flex flex-col items-center">
-            <span className="capitalize font-bold mb-2">{suit}</span>
-            <div className="flex flex-col gap-1 min-h-[120px]">
+          <div key={suit} className="suit-column">
+            <span className="suit-label">{suit}</span>
+            <div className="suit-cards">
               {(table[suit] || []).map((card) => (
                 <Card
                   key={card.id}
@@ -31,7 +32,7 @@ const GameTable: React.FC<GameTableProps> = ({ table, onPlayToTable, selectableC
               ))}
               {onPlayToTable && selectableCard && (
                 <button
-                  className="mt-2 px-2 py-1 bg-green-100 rounded text-xs text-green-700 hover:bg-green-200"
+                  className="play-button"
                   onClick={() => onPlayToTable(suit, selectableCard)}
                 >
                   Play here

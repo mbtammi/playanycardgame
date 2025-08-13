@@ -1,5 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import './PlayerHand.css';
 
 interface PlayerHandProps {
   cards: React.ReactNode[];
@@ -9,8 +10,8 @@ interface PlayerHandProps {
 
 const PlayerHand: React.FC<PlayerHandProps> = ({ cards, playerName, isCurrent }) => {
   return (
-    <div className={`flex flex-col items-center ${isCurrent ? 'scale-105' : ''}`}>
-      <div className="flex gap-2 mb-2">
+    <div className={`player-hand ${isCurrent ? 'current' : ''}`}>
+      <div className="player-cards">
         <AnimatePresence initial={false}>
           {React.Children.map(cards, (card, idx) => (
             <motion.div
@@ -26,7 +27,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({ cards, playerName, isCurrent })
           ))}
         </AnimatePresence>
       </div>
-      <span className={`text-sm font-semibold ${isCurrent ? 'text-green-700' : 'text-gray-600'}`}>{playerName}</span>
+      <span className={`player-name ${isCurrent ? 'current' : 'inactive'}`}>{playerName}</span>
     </div>
   );
 };

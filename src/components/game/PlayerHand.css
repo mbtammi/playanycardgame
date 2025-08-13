@@ -1,0 +1,28 @@
+.player-hand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.player-hand.current {
+  transform: scale(1.05);
+}
+
+.player-cards {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.player-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.player-name.current {
+  color: #15803d;
+}
+
+.player-name.inactive {
+  color: #4b5563;
+}

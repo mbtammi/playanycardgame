@@ -1,0 +1,483 @@
+/* GamePage Main Layout */
+.game-page {
+  min-height: 100vh;
+  background-color: white;
+}
+
+.game-container {
+  width: 80%;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 2rem 0;
+}
+
+.game-content {
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+/* No Game Selected State */
+.no-game-container {
+  min-height: 100vh;
+  background-color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.no-game-wrapper {
+  width: 80%;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.no-game-content {
+  text-align: center;
+}
+
+.no-game-card {
+  background-color: #f9fafb;
+  border-radius: 1rem;
+  padding: 3rem;
+  max-width: 28rem;
+  margin: 0 auto;
+  border: 1px solid #e5e7eb;
+}
+
+.no-game-icon {
+  font-size: 4rem;
+  margin-bottom: 2rem;
+}
+
+.no-game-title {
+  font-size: 1.875rem;
+  font-weight: bold;
+  color: #111827;
+  margin-bottom: 1.5rem;
+}
+
+.no-game-description {
+  color: #4b5563;
+  margin-bottom: 2rem;
+  line-height: 1.625;
+}
+
+/* Header */
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #4b5563;
+  font-weight: 500;
+  transition: color 0.2s;
+  background-color: #f9fafb;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.back-button:hover {
+  color: #111827;
+  border-color: #d1d5db;
+}
+
+.back-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.game-info {
+  text-align: right;
+}
+
+.game-title {
+  font-size: 1.875rem;
+  font-weight: bold;
+  color: #111827;
+  margin-bottom: 0.5rem;
+}
+
+.game-meta {
+  font-size: 1.125rem;
+  color: #4b5563;
+}
+
+/* Game Stats */
+.game-stats {
+  background-color: #f9fafb;
+  border-radius: 1rem;
+  padding: 2rem;
+  margin-bottom: 3rem;
+  border: 1px solid #e5e7eb;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2rem;
+}
+
+@media (min-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-icon.players {
+  background-color: #dbeafe;
+}
+
+.stat-icon.turn {
+  background-color: #fef3c7;
+}
+
+.stat-icon.deck {
+  background-color: #d1fae5;
+}
+
+.stat-text {
+  flex: 1;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #111827;
+}
+
+/* Message Area */
+.message-container {
+  margin-bottom: 2rem;
+}
+
+.message-card {
+  background-color: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.message-text {
+  color: #92400e;
+  font-weight: 500;
+}
+
+/* Players Section */
+.players-section {
+  margin-bottom: 3rem;
+}
+
+.players-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #111827;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.players-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  justify-items: center;
+}
+
+/* Actions Section */
+.actions-section {
+  margin-bottom: 2rem;
+}
+
+.actions-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.actions-grid {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Buttons */
+.action-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  border: none;
+  cursor: pointer;
+}
+
+.action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-button.primary {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.action-button.primary:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.action-button.secondary {
+  background-color: #6b7280;
+  color: white;
+}
+
+.action-button.secondary:hover:not(:disabled) {
+  background-color: #4b5563;
+}
+
+.action-button.danger {
+  background-color: #ef4444;
+  color: white;
+}
+
+.action-button.danger:hover:not(:disabled) {
+  background-color: #dc2626;
+}
+
+/* Cards Section */
+.cards-section {
+  margin-bottom: 2rem;
+}
+
+.cards-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.cards-grid {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Debug Panel */
+.debug-panel {
+  background-color: #1f2937;
+  color: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-top: 2rem;
+  font-family: monospace;
+  white-space: pre-wrap;
+}
+
+.debug-title {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  color: #fbbf24;
+}
+
+/* Game Table Wrapper */
+.game-table-wrapper {
+  margin: 2rem 0;
+}
+
+/* Turn Indicator */
+.turn-indicator {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.turn-badge {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  background-color: var(--primary-100, #ddd6fe);
+  color: var(--primary-700, #5b21b6);
+  font-weight: bold;
+  font-size: 1.25rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.turn-meta {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+/* Player Management */
+.player-management {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.player-list {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.player-count {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* Players Display */
+.players-display {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem;
+}
+
+.player-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Table Section */
+.table-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 3rem;
+}
+
+.table-title {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 1rem;
+  font-size: 1.125rem;
+}
+
+.table-area {
+  background-color: #dcfce7;
+  border-radius: 0.75rem;
+  padding: 2rem;
+  min-width: 24rem;
+  min-height: 10rem;
+}
+
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  justify-items: center;
+}
+
+.suit-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.suit-cards-area {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+/* Empty placeholder */
+.empty-slot {
+  width: 4rem;
+  height: 6rem;
+  border: 2px dashed #d1d5db;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+/* Status indicators */
+.status-indicator {
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.25rem;
+  background-color: #f3f4f6;
+  color: #1f2937;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.status-busted {
+  margin-left: 0.5rem;
+  color: #dc2626;
+  font-weight: bold;
+}
+
+.status-winner {
+  margin-left: 0.5rem;
+  color: #16a34a;
+  font-weight: bold;
+}
+
+.card-count {
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+/* Check indicator */
+.check-indicator {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  width: 1rem;
+  height: 1rem;
+  background-color: #10b981;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.check-mark {
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+}

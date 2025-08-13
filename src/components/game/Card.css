@@ -1,0 +1,88 @@
+/* Card Component Styles */
+
+.card {
+  width: 3rem;
+  height: 4.25rem;
+  min-width: 3rem;
+  min-height: 4.25rem;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  font-size: 1.125rem;
+  font-weight: 700;
+  border: 2px solid #e5e7eb;
+  transition: all 0.2s ease;
+  background-color: white;
+  border-radius: 0.25rem;
+}
+
+.card:hover {
+  transform: translateY(-0.125rem);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.card.selected {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.5);
+  background-color: #fef3c7;
+}
+
+.card.face-down {
+  background-color: #d1d5db;
+  color: #9ca3af;
+}
+
+.card-face-down-content {
+  font-size: 1.5rem;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-corners {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0.25rem;
+  padding-top: 0.25rem;
+}
+
+.card-corner {
+  font-size: 0.75rem;
+}
+
+.card-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-suit {
+  font-size: 1.5rem;
+}
+
+.card-bottom-corner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+  padding: 0.25rem;
+  padding-bottom: 0.25rem;
+  transform: rotate(180deg);
+}
+
+/* Suit colors */
+.card-red {
+  color: #ef4444;
+}
+
+.card-black {
+  color: #222222;
+}

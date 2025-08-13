@@ -7,6 +7,7 @@ import PlayerHand from '../components/game/PlayerHand';
 import Card from '../components/game/Card';
 import GameTable from '../components/game/GameTable';
 import { GameEngine } from '../engine/gameEngine';
+import './GamePage.css';
 
 
 const GamePage = () => {
@@ -177,208 +178,113 @@ const GamePage = () => {
 
   if (!currentGame) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center">
-        <div className="w-4/5 mx-auto"> {/* 80% width container */}
-        {/* Floating background elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <motion.div
-            animate={{ 
-              y: [0, -20, 0],
-              rotate: [0, 5, 0]
-            }}
-            transition={{ 
-              duration: 6,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="absolute top-32 left-16 w-24 h-24 bg-green-200/30 rounded-full blur-xl"
-          />
-          <motion.div
-            animate={{ 
-              y: [0, 30, 0],
-              x: [0, 10, 0]
-            }}
-            transition={{ 
-              duration: 8,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="absolute bottom-40 right-20 w-32 h-32 bg-emerald-200/20 rounded-full blur-2xl"
-          />
-        </div>
-
-        <div className="text-center relative">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
-            className="bg-white/80 backdrop-blur-sm rounded-3xl p-12 lg:p-16 shadow-2xl max-w-md mx-auto border border-green-100/50"
-          >
-            <motion.div 
-              className="text-6xl mb-8"
-              animate={{ 
-                rotate: [0, -10, 10, 0],
-                scale: [1, 1.1, 1]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
+      <div className="no-game-container">
+        <div className="no-game-wrapper">
+          <div className="no-game-content">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6 }}
+              className="no-game-card"
             >
-              🎯
+              <div className="no-game-icon">🎯</div>
+              <h2 className="no-game-title">No Game Selected</h2>
+              <p className="no-game-description">
+                It looks like you haven't selected a game to play. Let's get you back to the examples!
+              </p>
+              <motion.button
+                onClick={handleBack}
+                className="btn-primary text-lg"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                Go Back to Examples
+              </motion.button>
             </motion.div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">No Game Selected</h2>
-            <p className="text-gray-600 mb-8 leading-relaxed">
-              It looks like you haven't selected a game to play. Let's get you back to the examples!
-            </p>
-            <motion.button
-              onClick={handleBack}
-              className="btn-primary text-lg px-8 py-4 shadow-xl hover:shadow-2xl"
-              whileHover={{ 
-                scale: 1.05, 
-                y: -3,
-                boxShadow: "0 25px 50px -12px rgba(34, 197, 94, 0.4)"
-              }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Go Back to Examples
-            </motion.button>
-          </motion.div>
+          </div>
         </div>
-        </div> {/* Close 80% width container */}
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50">
-      <div className="w-4/5 mx-auto py-8"> {/* 80% width container */}
-      {/* Floating background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{ 
-            y: [0, -25, 0],
-            rotate: [0, 8, 0]
-          }}
-          transition={{ 
-            duration: 9,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="absolute top-20 right-12 w-28 h-28 bg-blue-200/20 rounded-full blur-xl"
-        />
-        <motion.div
-          animate={{ 
-            y: [0, 35, 0],
-            x: [0, -20, 0]
-          }}
-          transition={{ 
-            duration: 11,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="absolute bottom-32 left-16 w-36 h-36 bg-green-200/15 rounded-full blur-2xl"
-        />
-      </div>
-
-      <div className="max-w-3xl mx-auto relative">{/* Reduced from max-w-5xl */}
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="flex items-center justify-between mb-8"
-        >
-          <motion.button
-            onClick={handleBack}
-            className="flex items-center gap-2 text-green-600 hover:text-green-700 font-semibold group transition-colors bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full border border-green-200/50 shadow-lg hover:shadow-xl"
-            whileHover={{ scale: 1.05, x: -5 }}
-            whileTap={{ scale: 0.95 }}
+    <div className="game-page">
+      <div className="game-container">
+        <div className="game-content">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="game-header"
           >
-            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-            Back to Examples
-          </motion.button>
-          
-          <motion.div 
-            className="text-right"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">{currentGame.rules.name}</h1>
-            <p className="text-xl text-gray-600 font-medium">Turn {currentGame.turn} • Round {currentGame.round}</p>
+            <motion.button
+              onClick={handleBack}
+              className="back-button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <ArrowLeft className="back-icon" />
+              Back to Examples
+            </motion.button>
+            
+            <motion.div 
+              className="game-info"
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h1 className="game-title">{currentGame.rules.name}</h1>
+              <p className="game-meta">Turn {currentGame.turn} • Round {currentGame.round}</p>
+            </motion.div>
           </motion.div>
-        </motion.div>
 
-        {/* Game Info */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.6 }}
-          whileHover={{ y: -3 }}
-          className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 lg:p-10 mb-12 shadow-xl border border-green-100/50 hover:shadow-2xl transition-all duration-500"
-        >
-          <div className="grid md:grid-cols-3 gap-8">
-            <motion.div 
-              className="flex items-center gap-4 group"
-              whileHover={{ scale: 1.02 }}
-            >
-              <motion.div 
-                className="w-12 h-12 bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl flex items-center justify-center"
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.5 }}
-              >
-                <Users className="w-6 h-6 text-green-600" />
-              </motion.div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Players</h3>
-                <p className="text-gray-600 font-medium">
-                  {currentGame.players.length} / {currentGame.rules.players.max}
-                  {currentGame.players.length > 1 && (
-                    <span className="ml-2 text-sm">
-                      ({currentGame.players.filter(p => p.type === 'human').length} human, {currentGame.players.filter(p => p.type === 'bot').length} bot)
-                    </span>
-                  )}
-                </p>
+          {/* Game Info */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.6 }}
+            className="game-stats"
+          >
+            <div className="stats-grid">
+              <div className="stat-item">
+                <div className="stat-icon players">
+                  <Users className="w-6 h-6 text-blue-600" />
+                </div>
+                <div className="stat-text">
+                  <div className="stat-label">Players</div>
+                  <div className="stat-value">
+                    {currentGame.players.length} / {currentGame.rules.players.max}
+                    {currentGame.players.length > 1 && (
+                      <span className="ml-2 text-sm">
+                        ({currentGame.players.filter(p => p.type === 'human').length} human, {currentGame.players.filter(p => p.type === 'bot').length} bot)
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </motion.div>
-            
-            <motion.div 
-              className="flex items-center gap-4 group"
-              whileHover={{ scale: 1.02 }}
-            >
-              <motion.div 
-                className="w-12 h-12 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-2xl flex items-center justify-center"
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.5 }}
-              >
-                <Target className="w-6 h-6 text-blue-600" />
-              </motion.div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Objective</h3>
-                <p className="text-gray-600">{currentGame.rules.objective.description}</p>
+              
+              <div className="stat-item">
+                <div className="stat-icon turn">
+                  <Target className="w-6 h-6 text-green-600" />
+                </div>
+                <div className="stat-text">
+                  <div className="stat-label">Objective</div>
+                  <div className="stat-value">{currentGame.rules.objective.description}</div>
+                </div>
               </div>
-            </motion.div>
-            
-            <motion.div 
-              className="flex items-center gap-4 group"
-              whileHover={{ scale: 1.02 }}
-            >
-              <motion.div 
-                className="w-12 h-12 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl flex items-center justify-center"
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.5 }}
-              >
-                <Shuffle className="w-6 h-6 text-purple-600" />
-              </motion.div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Status</h3>
-                <p className="text-gray-600 capitalize font-medium">{currentGame.gameStatus}</p>
+              
+              <div className="stat-item">
+                <div className="stat-icon deck">
+                  <Shuffle className="w-6 h-6 text-purple-600" />
+                </div>
+                <div className="stat-text">
+                  <div className="stat-label">Status</div>
+                  <div className="stat-value" style={{ textTransform: 'capitalize' }}>{currentGame.gameStatus}</div>
+                </div>
               </div>
-            </motion.div>
-          </div>
-        </motion.div>
+            </div>
+          </motion.div>
 
         {/* Game Area - Interactive */}
         <motion.div
@@ -796,17 +702,97 @@ const GamePage = () => {
 
             {/* Game message */}
             {message && <div className="text-center text-lg text-green-700 font-semibold mb-2">{message}</div>}
+            
             {/* Win/Lose message for any game */}
             {currentGame.gameStatus === 'finished' && (
-              <div className="text-center text-2xl font-bold my-4">
-                {currentGame.winner === 'player-1' ? (
-                  <span className="text-green-700">You win! 🎉</span>
-                ) : currentGame.winner ? (
-                  <span className="text-red-700">You lose! {currentGame.players.find(p => p.id === currentGame.winner)?.name || 'A player'} wins.</span>
-                ) : (
-                  <span className="text-gray-700">No winner</span>
-                )}
-              </div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, type: "spring" }}
+                className="text-center my-8"
+              >
+                <div className={`inline-block px-8 py-6 rounded-2xl border-2 ${
+                  currentGame.winner === 'player-1' 
+                    ? 'bg-green-50 border-green-200 text-green-800' 
+                    : currentGame.winner
+                    ? 'bg-red-50 border-red-200 text-red-800'
+                    : 'bg-gray-50 border-gray-200 text-gray-800'
+                }`}>
+                  {currentGame.winner === 'player-1' ? (
+                    <div className="space-y-2">
+                      <div className="text-6xl mb-4">🎉</div>
+                      <h3 className="text-3xl font-bold">Congratulations!</h3>
+                      <p className="text-xl">You won the game!</p>
+                      {currentGame.players.length > 1 && (
+                        <p className="text-lg opacity-80">
+                          Final scores: {currentGame.players.map(p => 
+                            `${p.name}: ${p.hand.length} cards`
+                          ).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  ) : currentGame.winner ? (
+                    <div className="space-y-2">
+                      <div className="text-6xl mb-4">😔</div>
+                      <h3 className="text-3xl font-bold">Game Over</h3>
+                      <p className="text-xl">
+                        {currentGame.players.find(p => p.id === currentGame.winner)?.name || 'Bot'} wins!
+                      </p>
+                      {currentGame.players.length > 1 && (
+                        <p className="text-lg opacity-80">
+                          Final scores: {currentGame.players.map(p => 
+                            `${p.name}: ${p.hand.length} cards`
+                          ).join(', ')}
+                        </p>
+                      )}
+                      <p className="text-lg mt-2">Better luck next time!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-6xl mb-4">🤝</div>
+                      <h3 className="text-3xl font-bold">It's a Tie!</h3>
+                      <p className="text-xl">No clear winner this round</p>
+                    </div>
+                  )}
+                  
+                  {/* Play Again Button */}
+                  <motion.button
+                    onClick={() => {
+                      // Restart the game by reinitializing the engine
+                      if (currentGame && engineRef.current) {
+                        try {
+                          // Create a fresh engine instance
+                          engineRef.current = new GameEngine(currentGame.rules);
+                          currentGame.players.forEach(p => {
+                            engineRef.current?.addPlayer(p.name, p.type, p.avatar);
+                          });
+                          engineRef.current.startGame();
+                          updateGameState(engineRef.current.getGameState());
+                          setMessage(null);
+                          setSelectedCards([]);
+                        } catch (error) {
+                          // If restart fails, go back to examples
+                          handleBack();
+                        }
+                      }
+                    }}
+                    className="btn-primary mt-6 px-8 py-3 text-lg font-semibold"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    🎮 Play Again
+                  </motion.button>
+                  
+                  <motion.button
+                    onClick={handleBack}
+                    className="btn-secondary mt-4 ml-4 px-8 py-3 text-lg font-semibold"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    🏠 Back to Games
+                  </motion.button>
+                </div>
+              </motion.div>
             )}
 
 
@@ -830,18 +816,18 @@ const GamePage = () => {
           className="mb-16"
         >
           <h3 className="text-3xl font-bold text-gray-900 mb-8 text-center">Game Rules</h3>
-          <div className="card p-8 lg:p-12 shadow-xl">
+          <div className="bg-gray-50 rounded-2xl p-8 border border-gray-200">
             <div className="grid md:grid-cols-2 gap-10">
               <div className="space-y-6">
                 <div>
                   <h4 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-sm">1</span>
+                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">1</span>
                     Setup
                   </h4>
-                  <div className="bg-gray-50 rounded-xl p-6 space-y-3">
+                  <div className="bg-white rounded-xl p-6 space-y-3 border border-gray-200">
                     <div className="flex items-center justify-between">
                       <span className="text-gray-600">Cards per player:</span>
-                    <span className="font-semibold text-gray-900">{currentGame.rules.setup.cardsPerPlayer}</span>
+                      <span className="font-semibold text-gray-900">{currentGame.rules.setup.cardsPerPlayer}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-600">Number of players:</span>
@@ -858,7 +844,7 @@ const GamePage = () => {
               <div className="space-y-6">
                 <div>
                   <h4 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-sm">2</span>
+                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">2</span>
                     Actions
                   </h4>
                   <div className="flex flex-wrap gap-3">
@@ -868,7 +854,7 @@ const GamePage = () => {
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: 0.4 + index * 0.1 }}
-                        className="bg-gradient-to-r from-primary-500 to-purple-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
                       >
                         {action}
                       </motion.span>
@@ -881,7 +867,7 @@ const GamePage = () => {
             {currentGame.rules.specialRules && currentGame.rules.specialRules.length > 0 && (
               <div className="mt-10 pt-8 border-t border-gray-200">
                 <h4 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  <span className="w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-sm">3</span>
+                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">3</span>
                   Special Rules
                 </h4>
                 <div className="grid gap-4">
@@ -891,9 +877,9 @@ const GamePage = () => {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.5 + index * 0.1 }}
-                      className="flex items-start gap-3 p-4 bg-gradient-to-r from-primary-50 to-purple-50 rounded-xl border border-primary-100"
+                      className="flex items-start gap-3 p-4 bg-white rounded-xl border border-gray-200"
                     >
-                      <span className="w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                      <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                         {index + 1}
                       </span>
                       <p className="text-gray-700 leading-relaxed">{rule}</p>
@@ -905,7 +891,7 @@ const GamePage = () => {
           </div>
         </motion.div>
       </div>
-      </div> {/* Close 80% width container */}
+      </div>
     </div>
   );
 };

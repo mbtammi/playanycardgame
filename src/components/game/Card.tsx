@@ -1,4 +1,5 @@
 import React from 'react';
+import './Card.css';
 
 export interface CardProps {
   suit: string;
@@ -16,38 +17,32 @@ const suitSymbols: Record<string, string> = {
 };
 
 const Card: React.FC<CardProps> = ({ suit, rank, faceDown, onClick, selected }) => {
+  const isRed = suit === 'hearts' || suit === 'diamonds';
+  const cardClasses = `card ${selected ? 'selected' : ''} ${faceDown ? 'face-down' : ''}`;
+  const colorClass = isRed ? 'card-red' : 'card-black';
+
   return (
     <div
-      className={`game-card${selected ? ' selected' : ''} cursor-pointer select-none relative flex flex-col items-stretch justify-between text-lg font-bold border-2 transition-all duration-200${faceDown ? ' bg-gray-300 text-gray-400' : ''}`}
-      style={{ width: 48, height: 68, minWidth: 48, minHeight: 68 }}
+      className={cardClasses}
       onClick={onClick}
       aria-label={faceDown ? 'Card face down' : `${rank} of ${suit}`}
     >
       {faceDown ? (
-        <span className="text-2xl flex-1 flex items-center justify-center">🂠</span>
+        <span className="card-face-down-content">🂠</span>
       ) : (
         <>
-          <div className="flex justify-between items-start w-full px-1 pt-1">
-            <span
-              className="text-xs"
-              style={suit === 'hearts' || suit === 'diamonds' ? { color: '#ef4444' } : { color: '#222' }}
-            >
-              {rank}
-            </span>
-            <span
-              className="text-xs"
-              style={suit === 'hearts' || suit === 'diamonds' ? { color: '#ef4444' } : { color: '#222' }}
-            >
-              {rank}
-            </span>
+          <div className={`card-corners ${colorClass}`}>
+            <span className="card-corner">{rank}</span>
+            <span className="card-corner">{rank}</span>
           </div>
-          <div className="flex-1 flex items-center justify-center">
-            <span
-              className="text-2xl"
-              style={suit === 'hearts' || suit === 'diamonds' ? { color: '#ef4444' } : { color: '#222' }}
-            >
+          <div className="card-center">
+            <span className={`card-suit ${colorClass}`}>
               {suitSymbols[suit]}
             </span>
+          </div>
+          <div className={`card-bottom-corner ${colorClass}`}>
+            <span className="card-corner">{rank}</span>
+            <span className="card-corner">{rank}</span>
           </div>
         </>
       )}

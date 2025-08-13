@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store';
+import './RuleInput.css';
 
 const defaultText = `I will lift cards from the deck, if the card is black I will win.`;
 
@@ -104,30 +105,32 @@ const RuleInput: React.FC = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-8 border border-green-100 mt-10">
-      <h2 className="text-2xl font-bold mb-4 text-gray-900">Define Your Game Rules</h2>
+    <div className="rule-input-container">
+      <h2 className="rule-input-title">Define Your Game Rules</h2>
       <textarea
-        className="w-full min-h-[120px] p-3 border border-gray-200 rounded-lg mb-4 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-300"
+        className="rule-input-textarea"
         value={freeText}
         onChange={e => setFreeText(e.target.value)}
         placeholder="Describe your card game rules in plain English..."
       />
-      <button
-        className="btn-primary px-6 py-2 mb-4 mr-4"
-        onClick={interpretRules}
-        disabled={loading}
-      >
-        {loading ? 'Interpreting...' : 'Interpret Rules'}
-      </button>
-      <button
-        className="btn-secondary px-6 py-2 mb-4"
-        onClick={handleStartGame}
-        disabled={!schema}
-      >
-        Start Game
-      </button>
-      <h3 className="text-lg font-semibold mb-2 mt-4 text-gray-800">Generated Game Schema</h3>
-      <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-700 overflow-x-auto min-h-[120px]">
+      <div className="rule-input-buttons">
+        <button
+          className="btn-primary rule-input-interpret-button"
+          onClick={interpretRules}
+          disabled={loading}
+        >
+          {loading ? 'Interpreting...' : 'Interpret Rules'}
+        </button>
+        <button
+          className="btn-secondary rule-input-start-button"
+          onClick={handleStartGame}
+          disabled={!schema}
+        >
+          Start Game
+        </button>
+      </div>
+      <h3 className="rule-input-schema-title">Generated Game Schema</h3>
+      <pre className="rule-input-schema">
         {schema || 'Schema will appear here.'}
       </pre>
     </div>

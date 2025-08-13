@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage';
 import RuleBuilderPage from './pages/RuleBuilderPage';
 import GamePage from './pages/GamePage';
 import ExamplesPage from './pages/ExamplesPage';
+import './App.css';
 
 function App() {
   const currentPage = useCurrentPage();
@@ -25,9 +26,9 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
+    <div className="app-container">
       <Header />
-      <main className="flex-1">
+      <main className="app-main">
         {renderPage()}
       </main>
       <Footer />
