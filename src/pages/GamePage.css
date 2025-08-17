@@ -481,3 +481,7 @@
   font-size: 0.75rem;
   font-weight: bold;
 }
+
+.player-cards {
+    padding-inline: 0.5rem;
+}

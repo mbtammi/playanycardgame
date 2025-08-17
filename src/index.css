@@ -71,7 +71,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    margin: 0.25rem;
+    margin: 2rem 0.25rem;
   }
   
   .btn-secondary:hover {

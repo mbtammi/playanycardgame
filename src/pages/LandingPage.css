@@ -84,7 +84,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 4%;
   align-items: stretch;
-  width: 80%;
+  /* width: 80%; */
   justify-content: center;
   margin: 0 auto;
 }

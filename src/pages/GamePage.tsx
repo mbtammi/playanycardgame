@@ -319,7 +319,7 @@ const GamePage = () => {
                     {currentGame.players.map((player, idx) => (
                       <div 
                         key={player.id} 
-                        className={`px-4 py-2 rounded-full transition-all ${
+                        className={`player-cards rounded-full transition-all ${
                           idx === currentGame.currentPlayerIndex 
                             ? 'bg-primary-600 text-white shadow-lg scale-110' 
                             : 'bg-gray-200 text-gray-700'
