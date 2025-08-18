@@ -176,6 +176,9 @@ const GamePage = () => {
     );
   };
 
+  // Helper: should a hand be compact (many cards)?
+  const isHandCompact = (hand: any[]) => hand.length > 7;
+
   if (!currentGame) {
     return (
       <div className="no-game-container">
@@ -351,13 +354,8 @@ const GamePage = () => {
                       <PlayerHand
                         playerName={player.name}
                         isCurrent={isCurrent}
-                        cards={player.hand.map(card => {
-                          // Check if this card is playable
-                          const isPlayable = isCurrent && 
-                                           player.type === 'human' && 
-                                           isUserTurn() && 
-                                           engineRef.current?.isValidPlay?.(card.id);
-                          
+                        cards={player.hand.map((card, idx) => {
+                          const isPlayable = isCurrent && player.type === 'human' && isUserTurn() && engineRef.current?.isValidPlay?.(card.id);
                           return (
                             <div key={card.id} className="relative">
                               <Card
@@ -380,6 +378,8 @@ const GamePage = () => {
                             </div>
                           );
                         })}
+                        // Add compact class if hand is large
+                        className={isHandCompact(player.hand) ? 'compact' : ''}
                       />
                       {/* Blackjack: show hand value and bust status */}
                       {isBlackjack && (
@@ -611,7 +611,7 @@ const GamePage = () => {
                         if (totalCardsOnTable === 0) {
                           return (
                             <span className="text-sm text-gray-600 bg-red-50 px-3 py-1 rounded-full">
-                              🎯 First move: Play the 7 of diamonds to start!
+                              🎯 First move: Play the 7 of Clubs to start!
                             </span>
                           );
                         } else {
@@ -798,11 +798,11 @@ const GamePage = () => {
 
             {/* Deck and discard info */}
             <div className="flex flex-row gap-8 justify-center mt-4">
-              <div className="bg-white rounded-lg shadow px-4 py-2">
-                <span className="font-bold">Deck:</span> {currentGame.deck.length} cards
+              <div className="bg-white rounded-lg shadow ">
+                <span className="font-bold DeckDiscard">Deck:</span> {currentGame.deck.length} cards
               </div>
-              <div className="bg-white rounded-lg shadow px-4 py-2">
-                <span className="font-bold">Discard:</span> {currentGame.discardPile.length} cards
+              <div className="bg-white rounded-lg shadow ">
+                <span className="font-bold DeckDiscard">Discard:</span> {currentGame.discardPile.length} cards
               </div>
             </div>
           </GameTable>
@@ -813,10 +813,10 @@ const GamePage = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="mb-16"
+          className="mb-16 rules-section"
         >
           <h3 className="text-3xl font-bold text-gray-900 mb-8 text-center">Game Rules</h3>
-          <div className="bg-gray-50 rounded-2xl p-8 border border-gray-200">
+          <div className="rules-box">
             <div className="grid md:grid-cols-2 gap-10">
               <div className="space-y-6">
                 <div>

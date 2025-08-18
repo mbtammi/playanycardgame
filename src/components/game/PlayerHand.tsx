@@ -6,12 +6,13 @@ interface PlayerHandProps {
   cards: React.ReactNode[];
   playerName: string;
   isCurrent?: boolean;
+  className?: string;
 }
 
-const PlayerHand: React.FC<PlayerHandProps> = ({ cards, playerName, isCurrent }) => {
+const PlayerHand: React.FC<PlayerHandProps> = ({ cards, playerName, isCurrent, className }) => {
   return (
-    <div className={`player-hand ${isCurrent ? 'current' : ''}`}>
-      <div className="player-cards">
+    <div className={`player-hand ${isCurrent ? 'current' : ''} ${className || ''}`.trim()}>
+      <div className={`player-cards${className && className.includes('compact') ? ' compact' : ''}`}>
         <AnimatePresence initial={false}>
           {React.Children.map(cards, (card, idx) => (
             <motion.div

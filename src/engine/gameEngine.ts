@@ -503,7 +503,7 @@ export class GameEngine {
     let startingPlayerIndex = 0;
     for (let i = 0; i < this.state.players.length; i++) {
       const has7OfDiamonds = this.state.players[i].hand.some(card => 
-        card.rank === '7' && card.suit === 'diamonds'
+        card.rank === '7' && card.suit === 'clubs'
       );
       if (has7OfDiamonds) {
         startingPlayerIndex = i;

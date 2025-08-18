@@ -485,3 +485,248 @@
 .player-cards {
     padding-inline: 0.5rem;
 }
+
+/* Rules Section */
+.rules-section {
+  margin-bottom: 4rem;
+}
+
+.rules-box {
+  background: linear-gradient(135deg, #f3f4f6 60%, #e0e7ff 100%);
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 24px 0 rgba(0,0,0,0.04);
+  border: 1px solid #c7d2fe;
+  padding: 2.5rem 2rem;
+  margin: 0 auto;
+  max-width: 900px;
+}
+
+.rules-box h4 {
+  color: #1e293b;
+}
+
+.rules-box .bg-white {
+  background: #fff;
+}
+
+.rules-box .bg-blue-600 {
+  background: #2563eb;
+}
+
+.rules-box .text-white {
+  color: #fff;
+}
+
+.rules-box .rounded-xl {
+  border-radius: 1rem;
+}
+
+.rules-box .border-gray-200 {
+  border-color: #e5e7eb;
+}
+
+.rules-box .font-bold {
+  font-weight: 700;
+}
+
+.rules-box .text-gray-900 {
+  color: #111827;
+}
+
+.rules-box .text-gray-600 {
+  color: #4b5563;
+}
+
+.rules-box .text-gray-700 {
+  color: #374151;
+}
+
+.rules-box .text-sm {
+  font-size: 0.95rem;
+}
+
+.rules-box .text-xs {
+  font-size: 0.8rem;
+}
+
+.rules-box .font-medium {
+  font-weight: 500;
+}
+
+.rules-box .flex {
+  display: flex;
+}
+
+.rules-box .items-center {
+  align-items: center;
+}
+
+.rules-box .gap-2 {
+  gap: 0.5rem;
+}
+
+.rules-box .gap-3 {
+  gap: 0.75rem;
+}
+
+.rules-box .gap-4 {
+  gap: 1rem;
+}
+
+.rules-box .gap-10 {
+  gap: 2.5rem;
+}
+
+.rules-box .space-y-3 > * + * {
+  margin-top: 0.75rem;
+}
+
+.rules-box .space-y-6 > * + * {
+  margin-top: 1.5rem;
+}
+
+.rules-box .mt-10 {
+  margin-top: 2.5rem;
+}
+
+.rules-box .pt-8 {
+  padding-top: 2rem;
+}
+
+.rules-box .mb-4 {
+  margin-bottom: 1rem;
+}
+
+.rules-box .mb-6 {
+  margin-bottom: 1.5rem;
+}
+
+.rules-box .mb-8 {
+  margin-bottom: 2rem;
+}
+
+.rules-box .rounded-full {
+  border-radius: 9999px;
+}
+
+.rules-box .border {
+  border-width: 1px;
+}
+
+.rules-box .p-4 {
+  padding: 1rem;
+}
+
+.rules-box .p-6 {
+  padding: 1.5rem;
+}
+
+.rules-box .px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.rules-box .py-2 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.rules-box .rounded-lg {
+  border-radius: 0.75rem;
+}
+
+.rules-box .rounded-2xl {
+  border-radius: 1.25rem;
+}
+
+.rules-box .text-center {
+  text-align: center;
+}
+
+.rules-box .flex-wrap {
+  flex-wrap: wrap;
+}
+
+.rules-box .justify-between {
+  justify-content: space-between;
+}
+
+.rules-box .justify-center {
+  justify-content: center;
+}
+
+.rules-box .items-start {
+  align-items: flex-start;
+}
+
+.rules-box .font-semibold {
+  font-weight: 600;
+}
+
+.rules-box .leading-relaxed {
+  line-height: 1.6;
+}
+
+.rules-box .w-6 {
+  width: 1.5rem;
+}
+
+.rules-box .h-6 {
+  height: 1.5rem;
+}
+
+.rules-box .mt-0\.5 {
+  margin-top: 0.125rem;
+}
+
+.rules-box .flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+.rules-box .grid {
+  display: grid;
+}
+
+.rules-box .md\:grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.rules-box .gap-10 {
+  gap: 2.5rem;
+}
+
+.rules-box .gap-4 {
+  gap: 1rem;
+}
+
+.rules-box .border-t {
+  border-top-width: 1px;
+}
+
+.rules-box .border-gray-200 {
+  border-color: #e5e7eb;
+}
+
+.rules-box .font-bold {
+  font-weight: 700;
+}
+
+.rules-box .text-xl {
+  font-size: 1.25rem;
+}
+
+.rules-box .text-3xl {
+  font-size: 1.75rem;
+}
+
+.rules-box .mb-8 {
+  margin-bottom: 2rem;
+}
+
+.rules-box .mb-16 {
+  margin-bottom: 4rem;
+}
+
+.DeckDiscard {
+  padding-inline: 1%;
+}

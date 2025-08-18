@@ -40,11 +40,11 @@ export function getBotAction(gameState: GameState, rules: GameRules, botId: stri
     
     // First move: Must play 7 of diamonds if we have it
     if (totalCardsOnTable === 0) {
-      const sevenOfDiamonds = bot.hand.find(card => card.rank === '7' && card.suit === 'diamonds');
-      if (sevenOfDiamonds) {
-        return { action: 'play', cardIds: [sevenOfDiamonds.id] };
+      const sevenOfClubs = bot.hand.find(card => card.rank === '7' && card.suit === 'clubs');
+      if (sevenOfClubs) {
+        return { action: 'play', cardIds: [sevenOfClubs.id] };
       }
-      // If we don't have 7 of diamonds, we must pass (this shouldn't happen if game setup is correct)
+      // If we don't have 7 of clubs, we must pass (this shouldn't happen if game setup is correct)
       return { action: 'pass' };
     }
     

@@ -10,8 +10,30 @@
 
 .player-cards {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.15rem;
   margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.player-cards > * {
+  margin-left: -1.2rem;
+  transition: margin 0.15s, z-index 0.15s;
+  z-index: 1;
+}
+
+.player-cards > *:first-child {
+  margin-left: 0;
+}
+
+.player-cards > *:hover,
+.player-cards > *:focus-within {
+  z-index: 10;
+  margin-bottom: 0.25rem;
+}
+
+/* For extra compact hands, add .compact to .player-cards if needed */
+.player-cards.compact > * {
+  margin-left: -1.7rem;
 }
 
 .player-name {
