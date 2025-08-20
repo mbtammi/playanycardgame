@@ -297,13 +297,61 @@
 
 /* Debug Panel */
 .debug-panel {
-  background-color: #1f2937;
-  color: white;
-  padding: 1rem;
+  background: #374151;
+  border: 1px solid #6b7280;
   border-radius: 0.5rem;
-  margin-top: 2rem;
+  padding: 1rem;
+  margin: 1rem 0;
   font-family: monospace;
-  white-space: pre-wrap;
+  font-size: 0.875rem;
+}
+
+.debug-section {
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
+.player-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.card-container {
+  position: relative;
+}
+
+.check-text {
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.hand-status {
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+.hand-value-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.25rem;
+  background-color: #f3f4f6;
+  color: #1f2937;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.bust-indicator {
+  margin-left: 0.5rem;
+  color: #dc2626;
+  font-weight: bold;
+}
+
+.winner-indicator {
+  margin-left: 0.5rem;
+  color: #16a34a;
+  font-weight: bold;
 }
 
 .debug-title {
@@ -725,6 +773,173 @@
 
 .rules-box .mb-16 {
   margin-bottom: 4rem;
+}
+
+/* Additional utility classes to replace Tailwind */
+.icon-small {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.icon-blue {
+  color: #2563eb;
+}
+
+.icon-green {
+  color: #16a34a;
+}
+
+.icon-purple {
+  color: #9333ea;
+}
+
+.text-red {
+  color: #dc2626;
+}
+
+.text-black {
+  color: #000;
+}
+
+.text-small {
+  font-size: 0.875rem;
+}
+
+.margin-left-small {
+  margin-left: 0.5rem;
+}
+
+.turn-badge-new {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  background-color: var(--primary-100, #ddd6fe);
+  color: var(--primary-700, #5b21b6);
+  font-weight: bold;
+  font-size: 1.25rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.turn-meta-new {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.player-list-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.player-chip {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.player-chip.active {
+  background-color: var(--primary-600, #7c3aed);
+  color: white;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transform: scale(1.1);
+}
+
+.player-chip.inactive {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+.player-chip-count {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.check-indicator-small {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  width: 1rem;
+  height: 1rem;
+  background-color: #10b981;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.debug-panel {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 2rem;
+  margin-top: 2.5rem;
+}
+
+.debug-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #111827;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.debug-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  background-color: #ef4444;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+}
+
+.debug-content {
+  background-color: #111827;
+  color: white;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  font-family: monospace;
+  font-size: 0.875rem;
+}
+
+.debug-item {
+  margin-bottom: 1rem;
+}
+
+.debug-label {
+  font-weight: bold;
+  color: #fbbf24;
+}
+
+.debug-value-win {
+  margin-left: 0.5rem;
+  font-weight: bold;
+  color: #ef4444;
+}
+
+.debug-value-continue {
+  margin-left: 0.5rem;
+  font-weight: bold;
+  color: #10b981;
+}
+
+.debug-note {
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+.win-condition-custom {
+  font-size: 0.75rem;
+  color: #2563eb;
+  margin-top: 0.25rem;
 }
 
 .DeckDiscard {

@@ -1,0 +1,32 @@
+.card-stack-empty {
+  width: 4rem;
+  height: 6rem;
+  border: 2px dashed #d1d5db;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+.card-stack-container {
+  position: relative;
+}
+
+.card-stack-messy {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.card-in-stack {
+  position: absolute;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.card-in-stack:hover {
+  z-index: 999 !important; /* Force hover to top */
+  transform: scale(1.1);
+}

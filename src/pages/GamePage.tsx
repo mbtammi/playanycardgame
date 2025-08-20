@@ -88,8 +88,8 @@ const GamePage = () => {
   // Helper to get suit symbol and color
   const getSuitSymbol = (suit: string) => {
     switch (suit) {
-      case 'hearts': return { symbol: '♥', color: 'text-red-600' };
-      case 'diamonds': return { symbol: '♦', color: 'text-red-600' };
+      case 'hearts': return { symbol: '♥', color: 'text-red' };
+      case 'diamonds': return { symbol: '♦', color: 'text-red' };
       case 'clubs': return { symbol: '♣', color: 'text-black' };
       case 'spades': return { symbol: '♠', color: 'text-black' };
       default: return { symbol: '', color: 'text-black' };
@@ -250,16 +250,16 @@ const GamePage = () => {
             className="game-stats"
           >
             <div className="stats-grid">
-              <div className="stat-item">
+                            <div className="stat-item">
                 <div className="stat-icon players">
-                  <Users className="w-6 h-6 text-blue-600" />
+                  <Users className="icon-small icon-blue" />
                 </div>
                 <div className="stat-text">
                   <div className="stat-label">Players</div>
                   <div className="stat-value">
-                    {currentGame.players.length} / {currentGame.rules.players.max}
+                    {currentGame.players.length}
                     {currentGame.players.length > 1 && (
-                      <span className="ml-2 text-sm">
+                      <span className="margin-left-small text-small">
                         ({currentGame.players.filter(p => p.type === 'human').length} human, {currentGame.players.filter(p => p.type === 'bot').length} bot)
                       </span>
                     )}
@@ -269,7 +269,7 @@ const GamePage = () => {
               
               <div className="stat-item">
                 <div className="stat-icon turn">
-                  <Target className="w-6 h-6 text-green-600" />
+                  <Target className="icon-small icon-green" />
                 </div>
                 <div className="stat-text">
                   <div className="stat-label">Objective</div>
@@ -279,7 +279,7 @@ const GamePage = () => {
               
               <div className="stat-item">
                 <div className="stat-icon deck">
-                  <Shuffle className="w-6 h-6 text-purple-600" />
+                  <Shuffle className="icon-small icon-purple" />
                 </div>
                 <div className="stat-text">
                   <div className="stat-label">Status</div>
@@ -294,19 +294,19 @@ const GamePage = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="game-table min-h-[500px] flex flex-col items-center justify-center mb-12 shadow-2xl"
+          className="game-table"
         >
           <GameTable>
             {/* Turn feedback - Enhanced for multiplayer */}
-            <div className="mb-6 text-center">
+            <div className="turn-indicator">
               <div className="inline-block">
-                <span className="px-6 py-3 rounded-full bg-primary-100 text-primary-700 font-bold text-xl shadow-lg">
+                <span className="turn-badge-new">
                   {isUserTurn()
                     ? "🎯 Your turn!"
                     : `⏳ ${getCurrentPlayer()?.name}'s turn`}
                 </span>
                 {currentGame.players.length > 1 && (
-                  <div className="mt-2 text-sm text-gray-600">
+                  <div className="turn-meta-new">
                     Turn {currentGame.turn} • Round {currentGame.round}
                   </div>
                 )}
@@ -317,19 +317,19 @@ const GamePage = () => {
             <div className="w-full mb-8">
               {/* Current player indicator for multiplayer */}
               {currentGame.players.length > 1 && (
-                <div className="mb-6 text-center">
-                  <div className="flex justify-center items-center gap-4 flex-wrap">
+                <div className="player-management">
+                  <div className="player-list-container">
                     {currentGame.players.map((player, idx) => (
                       <div 
                         key={player.id} 
-                        className={`player-cards rounded-full transition-all ${
+                        className={`player-chip ${
                           idx === currentGame.currentPlayerIndex 
-                            ? 'bg-primary-600 text-white shadow-lg scale-110' 
-                            : 'bg-gray-200 text-gray-700'
+                            ? 'active' 
+                            : 'inactive'
                         }`}
                       >
                         <span className="font-semibold">{player.name}</span>
-                        <span className="ml-2 text-sm">({player.hand.length} cards)</span>
+                        <span className="player-chip-count">({player.hand.length} cards)</span>
                       </div>
                     ))}
                   </div>
@@ -337,7 +337,7 @@ const GamePage = () => {
               )}
 
               {/* Player hands layout */}
-              <div className="flex flex-wrap justify-center gap-8">
+              <div className="players-display">
                 {currentGame.players.map((player, idx) => {
                   const isCurrent = currentGame.currentPlayerIndex === idx;
                   // Show all players for multiplayer games
@@ -350,14 +350,14 @@ const GamePage = () => {
                   }
 
                   return (
-                    <div key={player.id} className="flex flex-col items-center">
+                    <div key={player.id} className="player-display">
                       <PlayerHand
                         playerName={player.name}
                         isCurrent={isCurrent}
                         cards={player.hand.map((card, idx) => {
                           const isPlayable = isCurrent && player.type === 'human' && isUserTurn() && engineRef.current?.isValidPlay?.(card.id);
                           return (
-                            <div key={card.id} className="relative">
+                            <div key={card.id} className="card-container">
                               <Card
                                 suit={card.suit}
                                 rank={card.rank}
@@ -371,8 +371,8 @@ const GamePage = () => {
                               />
                               {/* Show playability indicator for Sevens */}
                               {isPlayable && (
-                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                                  <span className="text-white text-xs font-bold">✓</span>
+                                <div className="check-indicator-small">
+                                  <span className="check-text">✓</span>
                                 </div>
                               )}
                             </div>
@@ -383,14 +383,14 @@ const GamePage = () => {
                       />
                       {/* Blackjack: show hand value and bust status */}
                       {isBlackjack && (
-                        <div className="mt-2 text-center">
-                          <span className="inline-block px-3 py-1 rounded bg-gray-100 text-gray-800 text-sm font-semibold">
+                        <div className="hand-status">
+                          <span className="hand-value-badge">
                             Hand: {handValues[player.id] ?? 0}
                             {busted[player.id] && (
-                              <span className="ml-2 text-red-600 font-bold">BUSTED</span>
+                              <span className="bust-indicator">BUSTED</span>
                             )}
                             {currentGame.winner === player.id && currentGame.gameStatus === 'finished' && !busted[player.id] && (
-                              <span className="ml-2 text-green-600 font-bold">WINNER</span>
+                              <span className="winner-indicator">WINNER</span>
                             )}
                           </span>
                         </div>
@@ -432,8 +432,8 @@ const GamePage = () => {
                                   // Calculate required width and height for the stack
                                   const cardWidth = 64; // Standard card width
                                   const cardHeight = 96; // Standard card height
-                                  const stackWidth = cardWidth + (suitCards.length - 1) * 12; // Base width + spacing
-                                  const stackHeight = cardHeight + (suitCards.length - 1) * 2; // Base height + depth
+                                  const stackWidth = cardWidth + (suitCards.length - 1) * 8; // Reduced spacing to match positioning
+                                  const stackHeight = cardHeight + (suitCards.length - 1) * 1; // Reduced height to match positioning
                                   
                                   return (
                                     <div 
@@ -462,12 +462,12 @@ const GamePage = () => {
                                         .map((card: any, index: number) => (
                                           <div 
                                             key={card.id} 
-                                            className="absolute transition-all duration-300 hover:z-50 hover:scale-110"
+                                            className="card-in-stack"
                                             style={{ 
-                                              left: `${index * 12}px`, // Clean horizontal spacing
-                                              top: `${index * 2}px`,   // Slight vertical offset for depth
+                                              left: `${index * 8}px`, // Reduced horizontal spacing for tighter stack
+                                              top: `${index * 1}px`,   // Reduced vertical offset for tighter stack
                                               zIndex: index + 1,
-                                              transform: `rotate(${index * 0.5}deg)` // Very subtle rotation for realism
+                                              transform: `rotate(${index * 0.3}deg)` // Reduced rotation for subtlety
                                             }}
                                           >
                                             <Card suit={card.suit} rank={card.rank} />
@@ -477,7 +477,7 @@ const GamePage = () => {
                                   );
                                 })()
                               ) : (
-                                <div className="w-16 h-24 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 text-xs">
+                                <div className="card-stack-empty">
                                   Empty
                                 </div>
                               )}
@@ -495,18 +495,16 @@ const GamePage = () => {
                             <div className="flex flex-wrap justify-center gap-1">
                               {suitCards.length > 0 ? (
                                 (() => {
-                                  // Calculate required size for messy pile (more generous for random positioning)
+                                  // No extra space needed - cards stack exactly on top
                                   const cardWidth = 64;
                                   const cardHeight = 96;
-                                  const pileWidth = cardWidth + 40; // Extra space for random positioning
-                                  const pileHeight = cardHeight + (suitCards.length * 3) + 16; // Stack height + random offset
                                   
                                   return (
                                     <div 
-                                      className="relative flex justify-center"
+                                      className="card-stack-messy"
                                       style={{ 
-                                        width: `${pileWidth}px`, 
-                                        height: `${pileHeight}px`,
+                                        width: `${cardWidth}px`, 
+                                        height: `${cardHeight}px`,
                                         minHeight: '96px',
                                         minWidth: '80px'
                                       }}
@@ -518,19 +516,17 @@ const GamePage = () => {
                                           return ranks.indexOf(a.rank) - ranks.indexOf(b.rank);
                                         })
                                         .map((card, index) => {
-                                          // Create controlled "randomness" based on card ID for consistency
+                                          // Create controlled "randomness" for rotation only
                                           const seed = card.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                                          const randomX = (seed % 20) - 10; // -10 to +10 px
-                                          const randomY = (seed % 16) - 8;  // -8 to +8 px
-                                          const randomRotation = (seed % 30) - 15; // -15 to +15 degrees
+                                          const randomRotation = (seed % 20) - 10; // Only rotation varies
                                           
                                           return (
                                             <div 
                                               key={card.id} 
-                                              className="absolute transition-all duration-300 hover:z-50 hover:scale-110"
+                                              className="card-in-stack"
                                               style={{ 
-                                                left: `${20 + randomX}px`, // Center + random offset
-                                                top: `${index * 3 + randomY}px`, // Stack height + random offset
+                                                left: '0px', // Always at left edge
+                                                top: '0px', // Always at top
                                                 zIndex: index + 1,
                                                 transform: `rotate(${randomRotation}deg)`
                                               }}
@@ -543,7 +539,7 @@ const GamePage = () => {
                                   );
                                 })()
                               ) : (
-                                <div className="w-16 h-24 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 text-xs">
+                                <div className="card-stack-empty">
                                   Empty
                                 </div>
                               )}
@@ -562,31 +558,29 @@ const GamePage = () => {
               <div className="flex flex-col items-center mb-8">
                 <div className="font-semibold text-gray-700 mb-2">Drawn Cards</div>
                 <div 
-                  className="relative flex justify-center" 
+                  className="card-stack-messy" 
                   style={{ 
-                    width: '128px', // Fixed width to contain the messy pile
-                    height: `${96 + currentGame.discardPile.length * 2 + 16}px`, // Card height + stack + random offset space
+                    width: '64px', // Just card width, no extra space needed
+                    height: '96px', // Just card height, no stacking height needed
                     minHeight: '96px' // Minimum card height
                   }}
                 >
-                  {/* Messy pile for discard - only top card matters */}
+                  {/* Messy pile for discard - cards stack directly on top */}
                   {currentGame.discardPile.map((card, i) => {
-                    // Create controlled "randomness" for messy pile effect
+                    // Create controlled "randomness" for rotation only
                     const seed = card.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                    const randomX = (seed % 24) - 12; // -12 to +12 px
-                    const randomY = (seed % 16) - 8;  // -8 to +8 px
-                    const randomRotation = (seed % 40) - 20; // -20 to +20 degrees (more chaotic)
+                    const randomRotation = (seed % 20) - 10; // Only rotation varies
                     
                     return (
                       <div
                         key={card.id}
-                        className="absolute transition-all duration-300"
+                        className="card-in-stack"
                         style={{
-                          left: `${64 + randomX}px`, // Center (64px from left) + random offset
-                          top: `${i * 2 + randomY}px`, // Small stack height + random
-                          zIndex: i + 1,
+                          left: '0px', // Always at left edge of 64px container
+                          top: '0px',   // Always at top, no vertical variation
+                          zIndex: i + 1, // Higher index = on top
                           transform: `rotate(${randomRotation}deg)`,
-                          boxShadow: i === currentGame.discardPile.length - 1 ? '0 8px 24px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
+                          boxShadow: i === currentGame.discardPile.length - 1 ? '0 4px 12px rgba(0,0,0,0.2)' : 'none', // Only top card has shadow
                         }}
                       >
                         <Card suit={card.suit} rank={card.rank} />
@@ -890,6 +884,79 @@ const GamePage = () => {
             )}
           </div>
         </motion.div>
+
+        {/* Debug Panel - Only show for custom games */}
+        {currentGame.rules.winConditions.some(w => w.type === 'custom') && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mb-16"
+          >
+            <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">🔍 Debug Information</h3>
+            <div className="bg-gray-900 text-white p-6 rounded-xl font-mono text-sm max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="mb-4">
+                    <strong className="text-yellow-400">Game Status:</strong> 
+                    <span className={`ml-2 ${currentGame.gameStatus === 'finished' ? 'text-green-400' : 'text-blue-400'}`}>
+                      {currentGame.gameStatus}
+                    </span>
+                  </div>
+                  <div className="mb-4">
+                    <strong className="text-yellow-400">Winner:</strong> 
+                    <span className="ml-2 text-green-400">{currentGame.winner || 'None'}</span>
+                  </div>
+                  <div className="mb-4">
+                    <strong className="text-yellow-400">Current Player:</strong> 
+                    <span className="ml-2 text-blue-400">
+                      {currentGame.players[currentGame.currentPlayerIndex]?.name || 'Unknown'}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-4">
+                    <strong className="text-yellow-400">Last Action:</strong> 
+                    <span className="ml-2 text-purple-400">{currentGame.lastAction?.action || 'None'}</span>
+                  </div>
+                  {(currentGame as any).lastDrawnCard && (
+                    <div className="mb-4">
+                      <strong className="text-yellow-400">Last Drawn Card:</strong> 
+                      <span className="ml-2 text-white">
+                        {(currentGame as any).lastDrawnCard.rank} of {(currentGame as any).lastDrawnCard.suit}
+                      </span>
+                      <span className={`ml-2 font-bold ${
+                        ((currentGame as any).lastDrawnCard.suit === 'clubs' || (currentGame as any).lastDrawnCard.suit === 'spades') 
+                          ? 'text-red-400' 
+                          : 'text-green-400'
+                      }`}>
+                        {((currentGame as any).lastDrawnCard.suit === 'clubs' || (currentGame as any).lastDrawnCard.suit === 'spades') 
+                          ? '(BLACK - Should Win!)' 
+                          : '(RED - Continue)'
+                        }
+                      </span>
+                    </div>
+                  )}
+                  <div className="mb-4">
+                    <strong className="text-yellow-400">Win Condition Type:</strong> 
+                    <span className="ml-2 text-orange-400">
+                      {currentGame.rules.winConditions[0]?.type || 'Unknown'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="border-t border-gray-700 pt-4 mt-4">
+                <div className="text-gray-400 text-xs mb-2">Win Condition Description:</div>
+                <div className="text-white bg-gray-800 p-3 rounded">
+                  "{currentGame.rules.winConditions[0]?.description || 'No description'}"
+                </div>
+              </div>
+              <div className="text-gray-400 text-xs mt-4">
+                💡 Check browser console (F12) for detailed win condition evaluation logs
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
       </div>
     </div>

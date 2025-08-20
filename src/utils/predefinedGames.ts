@@ -181,7 +181,61 @@ const warRules: GameRules = {
   ],
 };
 
+// Black Card Challenge - Test game for custom win conditions
+const blackCardRules: GameRules = {
+  id: 'black-card-challenge',
+  name: 'Black Card Challenge',
+  description: 'Draw cards from the deck. If you draw a black card (clubs or spades), you win!',
+  players: {
+    min: 1,
+    max: 1,
+    recommended: 1,
+  },
+  setup: {
+    cardsPerPlayer: 0,
+    deckSize: 52,
+    keepDrawnCard: false, // Cards go to discard pile so we can see them
+  },
+  objective: {
+    type: 'custom',
+    description: 'Draw a black card to win',
+  },
+  turnStructure: {
+    order: 'clockwise',
+    phases: [
+      {
+        name: 'playing',
+        required: true,
+        actions: ['draw'],
+      },
+    ],
+  },
+  actions: ['draw'],
+  winConditions: [
+    {
+      type: 'custom',
+      description: 'I will lift cards from the deck, if the card is black I will win.',
+    },
+  ],
+  specialRules: [
+    'Draw cards one at a time from the deck',
+    'If you draw a black card (clubs ♣ or spades ♠), you win immediately!',
+    'Red cards (hearts ♥ or diamonds ♦) continue the game',
+  ],
+};
+
 export const predefinedGames: PredefinedGame[] = [
+  {
+    id: 'black-card-challenge',
+    name: 'Black Card Challenge',
+    description: 'Test your luck! Draw until you get a black card.',
+    thumbnail: '🖤',
+    difficulty: 'easy',
+    playerCount: '1 player',
+    duration: '1-2 min',
+    rules: blackCardRules,
+    featured: true,
+  },
   {
     id: 'go-fish',
     name: 'Go Fish',

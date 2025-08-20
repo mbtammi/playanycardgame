@@ -1,6 +1,7 @@
 import React from 'react';
 import Card from './game/Card';
 import type { Card as CardType } from '../types';
+import './CardStack.css';
 
 interface CardStackProps {
   cards: CardType[];
@@ -19,7 +20,7 @@ export const CardStack: React.FC<CardStackProps> = ({
 }) => {
   if (cards.length === 0) {
     return (
-      <div className={`w-16 h-24 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 text-xs ${className}`}>
+      <div className={`card-stack-empty ${className}`}>
         Empty
       </div>
     );
@@ -31,12 +32,12 @@ export const CardStack: React.FC<CardStackProps> = ({
     // Calculate required dimensions for clean stack
     const cardWidth = 64;
     const cardHeight = 96;
-    const stackWidth = cardWidth + (visibleCards.length - 1) * 12;
-    const stackHeight = cardHeight + (visibleCards.length - 1) * 2;
+    const stackWidth = cardWidth + (visibleCards.length - 1) * 8; // Reduced spacing
+    const stackHeight = cardHeight + (visibleCards.length - 1) * 1; // Reduced height
     
     return (
       <div 
-        className={`relative ${className}`}
+        className={`card-stack-container ${className}`}
         style={{ 
           width: `${stackWidth}px`, 
           height: `${stackHeight}px`,
@@ -47,12 +48,12 @@ export const CardStack: React.FC<CardStackProps> = ({
         {visibleCards.map((card, index) => (
           <div 
             key={card.id} 
-            className="absolute transition-all duration-300 hover:z-50 hover:scale-110 cursor-pointer"
+            className="card-in-stack"
             style={{ 
-              left: `${index * 12}px`, // Clean horizontal spacing
-              top: `${index * 2}px`,   // Slight vertical offset for depth
+              left: `${index * 8}px`, // Reduced horizontal spacing
+              top: `${index * 1}px`,   // Reduced vertical offset
               zIndex: index + 1,
-              transform: `rotate(${index * 0.5}deg)` // Very subtle rotation for realism
+              transform: `rotate(${index * 0.3}deg)` // Reduced rotation
             }}
             onClick={() => onCardClick?.(card.id)}
           >
@@ -63,41 +64,37 @@ export const CardStack: React.FC<CardStackProps> = ({
     );
   }
 
-  // Messy stack style - calculate required dimensions
+  // Messy stack style - cards stack directly on top
   const cardWidth = 64;
   const cardHeight = 96;
-  const pileWidth = cardWidth + 40; // Extra space for random positioning
-  const pileHeight = cardHeight + (visibleCards.length * 3) + 16; // Stack height + random offset
   
   return (
     <div 
-      className={`relative flex justify-center ${className}`}
+      className={`card-stack-messy ${className}`}
       style={{ 
-        width: `${pileWidth}px`, 
-        height: `${pileHeight}px`,
+        width: `${cardWidth}px`, 
+        height: `${cardHeight}px`,
         minHeight: '96px',
-        minWidth: '80px'
+        minWidth: '64px'
       }}
     >
       {visibleCards.map((card, index) => {
-        // Create controlled "randomness" based on card ID for consistency
+        // Create controlled "randomness" for rotation only
         const seed = card.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const randomX = (seed % 20) - 10; // -10 to +10 px
-        const randomY = (seed % 16) - 8;  // -8 to +8 px
-        const randomRotation = (seed % 30) - 15; // -15 to +15 degrees
+        const randomRotation = (seed % 20) - 10; // Only rotation varies
         
         return (
           <div 
             key={card.id} 
-            className="absolute transition-all duration-300 hover:z-50 hover:scale-110 cursor-pointer"
+            className="card-in-stack"
             style={{ 
-              left: `${20 + randomX}px`, // Center + random offset
-              top: `${index * 3 + randomY}px`, // Stack height + random offset
+              left: '0px', // Always at left edge
+              top: '0px', // Always at top
               zIndex: index + 1,
               transform: `rotate(${randomRotation}deg)`,
               boxShadow: index === visibleCards.length - 1 
-                ? '0 8px 24px rgba(0,0,0,0.3)' 
-                : '0 2px 8px rgba(0,0,0,0.1)'
+                ? '0 4px 12px rgba(0,0,0,0.2)' 
+                : 'none' // Only top card has shadow
             }}
             onClick={() => onCardClick?.(card.id)}
           >

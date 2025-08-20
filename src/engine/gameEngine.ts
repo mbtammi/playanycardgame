@@ -427,9 +427,146 @@ export class GameEngine {
           );
         }
         break;
+      
+      case 'custom':
+        return this.evaluateCustomWinCondition(player, condition);
     }
 
     return false;
+  }
+
+  private evaluateCustomWinCondition(player: Player, condition: any): boolean {
+    const description = condition.description.toLowerCase();
+    console.log(`🎯 Evaluating custom win condition for ${player.name}: "${description}"`);
+    
+    // Handle "draw/lift black card to win" scenarios
+    if (description.includes('black') && description.includes('win')) {
+      const lastAction = this.state.lastAction;
+      console.log(`📋 Last action:`, lastAction);
+      const lastDrawnCard = (this.state as any).lastDrawnCard;
+      console.log(`🃏 Last drawn card:`, lastDrawnCard);
+      
+      if (lastAction && lastAction.playerId === player.id && lastAction.action === 'draw') {
+        // Check if the last drawn card was black
+        if (lastDrawnCard && (lastDrawnCard.suit === 'clubs' || lastDrawnCard.suit === 'spades')) {
+          console.log(`🎉 WIN CONDITION MET: ${player.name} drew a black card!`);
+          return true;
+        }
+      }
+    }
+    
+    // Handle "draw/lift red card to win" scenarios
+    if (description.includes('red') && description.includes('win')) {
+      const lastAction = this.state.lastAction;
+      if (lastAction && lastAction.playerId === player.id && lastAction.action === 'draw') {
+        const lastDrawnCard = (this.state as any).lastDrawnCard;
+        if (lastDrawnCard && (lastDrawnCard.suit === 'hearts' || lastDrawnCard.suit === 'diamonds')) {
+          console.log(`🎉 WIN CONDITION MET: ${player.name} drew a red card!`);
+          return true;
+        }
+      }
+    }
+    
+    // Handle "draw specific rank to win" scenarios
+    const rankMatches = description.match(/(?:draw|lift).*?([akqj]|ace|king|queen|jack|\d+).*?win/);
+    if (rankMatches) {
+      const targetRank = this.normalizeRank(rankMatches[1]);
+      const lastAction = this.state.lastAction;
+      if (lastAction && lastAction.playerId === player.id && lastAction.action === 'draw') {
+        const lastDrawnCard = (this.state as any).lastDrawnCard;
+        if (lastDrawnCard && this.normalizeRank(lastDrawnCard.rank) === targetRank) {
+          console.log(`🎉 WIN CONDITION MET: ${player.name} drew a ${targetRank}!`);
+          return true;
+        }
+      }
+    }
+    
+    // Handle "collect X cards to win" scenarios
+    const collectMatches = description.match(/collect.*?(\d+).*?cards?.*?win/);
+    if (collectMatches) {
+      const targetCount = parseInt(collectMatches[1]);
+      const hasEnough = player.hand.length >= targetCount;
+      if (hasEnough) {
+        console.log(`🎉 WIN CONDITION MET: ${player.name} has ${player.hand.length} cards (need ${targetCount})!`);
+      }
+      return hasEnough;
+    }
+    
+    // Handle "reach X points to win" scenarios
+    const pointMatches = description.match(/reach.*?(\d+).*?points?.*?win/);
+    if (pointMatches) {
+      const targetPoints = parseInt(pointMatches[1]);
+      const currentPoints = this.state.scores[player.id];
+      const hasEnough = currentPoints >= targetPoints;
+      if (hasEnough) {
+        console.log(`🎉 WIN CONDITION MET: ${player.name} has ${currentPoints} points (need ${targetPoints})!`);
+      }
+      return hasEnough;
+    }
+    
+    // Handle "empty hand to win" scenarios
+    if (description.includes('empty hand') || description.includes('no cards')) {
+      const isEmpty = player.hand.length === 0;
+      if (isEmpty) {
+        console.log(`🎉 WIN CONDITION MET: ${player.name} has an empty hand!`);
+      }
+      return isEmpty;
+    }
+    
+    // Handle suit-based win conditions
+    if (description.includes('all hearts') || description.includes('only hearts')) {
+      const allHearts = player.hand.every(card => card.suit === 'hearts');
+      if (allHearts && player.hand.length > 0) {
+        console.log(`🎉 WIN CONDITION MET: ${player.name} has all hearts!`);
+      }
+      return allHearts && player.hand.length > 0;
+    }
+    if (description.includes('all diamonds') || description.includes('only diamonds')) {
+      const allDiamonds = player.hand.every(card => card.suit === 'diamonds');
+      if (allDiamonds && player.hand.length > 0) {
+        console.log(`🎉 WIN CONDITION MET: ${player.name} has all diamonds!`);
+      }
+      return allDiamonds && player.hand.length > 0;
+    }
+    if (description.includes('all clubs') || description.includes('only clubs')) {
+      const allClubs = player.hand.every(card => card.suit === 'clubs');
+      if (allClubs && player.hand.length > 0) {
+        console.log(`🎉 WIN CONDITION MET: ${player.name} has all clubs!`);
+      }
+      return allClubs && player.hand.length > 0;
+    }
+    if (description.includes('all spades') || description.includes('only spades')) {
+      const allSpades = player.hand.every(card => card.suit === 'spades');
+      if (allSpades && player.hand.length > 0) {
+        console.log(`🎉 WIN CONDITION MET: ${player.name} has all spades!`);
+      }
+      return allSpades && player.hand.length > 0;
+    }
+    
+    // Handle "have all of same rank" scenarios
+    if (description.includes('all') && (description.includes('same') || description.includes('matching'))) {
+      if (player.hand.length > 0) {
+        const firstRank = player.hand[0].rank;
+        const allSame = player.hand.every(card => card.rank === firstRank);
+        if (allSame) {
+          console.log(`🎉 WIN CONDITION MET: ${player.name} has all ${firstRank}s!`);
+        }
+        return allSame;
+      }
+    }
+    
+    console.log(`❌ No matching win condition pattern found for: "${description}"`);
+    // Default: return false for unrecognized custom conditions
+    return false;
+  }
+  
+  private normalizeRank(rank: string): string {
+    const normalized = rank.toLowerCase();
+    if (normalized === 'ace') return 'A';
+    if (normalized === 'king') return 'K';
+    if (normalized === 'queen') return 'Q';
+    if (normalized === 'jack') return 'J';
+    return rank.toUpperCase();
   }
 
   private matchesPattern(card: Card, pattern: string): boolean {
