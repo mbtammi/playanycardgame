@@ -67,29 +67,36 @@ export const CardStack: React.FC<CardStackProps> = ({
   // Messy stack style - cards stack directly on top
   const cardWidth = 64;
   const cardHeight = 96;
+  // Add extra space for rotation - cards can extend beyond base dimensions when rotated
+  const stackWidth = cardWidth + 24; // Extra 24px for rotation overflow
+  const stackHeight = cardHeight + 16; // Extra 16px for rotation overflow
   
   return (
     <div 
       className={`card-stack-messy ${className}`}
       style={{ 
-        width: `${cardWidth}px`, 
-        height: `${cardHeight}px`,
-        minHeight: '96px',
-        minWidth: '64px'
+        width: `${stackWidth}px`, 
+        height: `${stackHeight}px`,
+        minHeight: `${stackHeight}px`,
+        minWidth: `${stackWidth}px`
       }}
     >
       {visibleCards.map((card, index) => {
-        // Create controlled "randomness" for rotation only
+        // Create more varied rotation and tiny position variations for natural messiness
         const seed = card.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const randomRotation = (seed % 20) - 10; // Only rotation varies
+        const randomRotation = (seed % 16) - 8; // More varied: -8 to +8 degrees
+        
+        // Add tiny random position offsets for more natural look
+        const offsetX = ((seed * 7) % 8) - 4; // -4 to +4 px horizontal variation
+        const offsetY = ((seed * 11) % 6) - 3; // -3 to +3 px vertical variation
         
         return (
           <div 
             key={card.id} 
             className="card-in-stack"
             style={{ 
-              left: '0px', // Always at left edge
-              top: '0px', // Always at top
+              left: `${12 + offsetX}px`, // Center + small random offset
+              top: `${8 + offsetY}px`, // Center + small random offset
               zIndex: index + 1,
               transform: `rotate(${randomRotation}deg)`,
               boxShadow: index === visibleCards.length - 1 

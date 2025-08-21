@@ -6,6 +6,7 @@ import { ArrowLeft, Users, Target, Shuffle } from 'lucide-react';
 import PlayerHand from '../components/game/PlayerHand';
 import Card from '../components/game/Card';
 import GameTable from '../components/game/GameTable';
+import CardStack from '../components/CardStack';
 import { GameEngine } from '../engine/gameEngine';
 import './GamePage.css';
 
@@ -354,7 +355,7 @@ const GamePage = () => {
                       <PlayerHand
                         playerName={player.name}
                         isCurrent={isCurrent}
-                        cards={player.hand.map((card, idx) => {
+                        cards={player.hand.map((card) => {
                           const isPlayable = isCurrent && player.type === 'human' && isUserTurn() && engineRef.current?.isValidPlay?.(card.id);
                           return (
                             <div key={card.id} className="card-container">
@@ -494,50 +495,14 @@ const GamePage = () => {
                             <div className="text-sm font-medium text-gray-600 mb-2 capitalize">{suit}</div>
                             <div className="flex flex-wrap justify-center gap-1">
                               {suitCards.length > 0 ? (
-                                (() => {
-                                  // No extra space needed - cards stack exactly on top
-                                  const cardWidth = 64;
-                                  const cardHeight = 96;
-                                  
-                                  return (
-                                    <div 
-                                      className="card-stack-messy"
-                                      style={{ 
-                                        width: `${cardWidth}px`, 
-                                        height: `${cardHeight}px`,
-                                        minHeight: '96px',
-                                        minWidth: '80px'
-                                      }}
-                                    >
-                                      {/* Messy pile stack - random positioning for casual games */}
-                                      {suitCards
-                                        .sort((a, b) => {
-                                          const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-                                          return ranks.indexOf(a.rank) - ranks.indexOf(b.rank);
-                                        })
-                                        .map((card, index) => {
-                                          // Create controlled "randomness" for rotation only
-                                          const seed = card.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                                          const randomRotation = (seed % 20) - 10; // Only rotation varies
-                                          
-                                          return (
-                                            <div 
-                                              key={card.id} 
-                                              className="card-in-stack"
-                                              style={{ 
-                                                left: '0px', // Always at left edge
-                                                top: '0px', // Always at top
-                                                zIndex: index + 1,
-                                                transform: `rotate(${randomRotation}deg)`
-                                              }}
-                                            >
-                                              <Card suit={card.suit} rank={card.rank} />
-                                            </div>
-                                          );
-                                        })}
-                                    </div>
-                                  );
-                                })()
+                                <CardStack 
+                                  cards={suitCards.sort((a, b) => {
+                                    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+                                    return ranks.indexOf(a.rank) - ranks.indexOf(b.rank);
+                                  })}
+                                  stackType="messy"
+                                  maxVisible={10}
+                                />
                               ) : (
                                 <div className="card-stack-empty">
                                   Empty
@@ -557,37 +522,11 @@ const GamePage = () => {
             {currentGame.discardPile && currentGame.discardPile.length > 0 && !currentGame.communityCards?.length && (
               <div className="flex flex-col items-center mb-8">
                 <div className="font-semibold text-gray-700 mb-2">Drawn Cards</div>
-                <div 
-                  className="card-stack-messy" 
-                  style={{ 
-                    width: '64px', // Just card width, no extra space needed
-                    height: '96px', // Just card height, no stacking height needed
-                    minHeight: '96px' // Minimum card height
-                  }}
-                >
-                  {/* Messy pile for discard - cards stack directly on top */}
-                  {currentGame.discardPile.map((card, i) => {
-                    // Create controlled "randomness" for rotation only
-                    const seed = card.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                    const randomRotation = (seed % 20) - 10; // Only rotation varies
-                    
-                    return (
-                      <div
-                        key={card.id}
-                        className="card-in-stack"
-                        style={{
-                          left: '0px', // Always at left edge of 64px container
-                          top: '0px',   // Always at top, no vertical variation
-                          zIndex: i + 1, // Higher index = on top
-                          transform: `rotate(${randomRotation}deg)`,
-                          boxShadow: i === currentGame.discardPile.length - 1 ? '0 4px 12px rgba(0,0,0,0.2)' : 'none', // Only top card has shadow
-                        }}
-                      >
-                        <Card suit={card.suit} rank={card.rank} />
-                      </div>
-                    );
-                  })}
-                </div>
+                <CardStack 
+                  cards={currentGame.discardPile}
+                  stackType="messy"
+                  maxVisible={10}
+                />
               </div>
             )}
 

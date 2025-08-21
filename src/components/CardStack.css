@@ -16,8 +16,6 @@
 
 .card-stack-messy {
   position: relative;
-  display: flex;
-  justify-content: center;
 }
 
 .card-in-stack {
@@ -26,7 +24,16 @@
   cursor: pointer;
 }
 
+.card-in-stack .card {
+  margin: 0; /* Remove any margin */
+  padding: 5%; /* Keep original padding */
+}
+
+.card-in-stack .card:hover {
+  transform: none !important; /* Override card's hover transform */
+}
+
 .card-in-stack:hover {
   z-index: 999 !important; /* Force hover to top */
-  transform: scale(1.1);
+  transform: scale(1.05) !important; /* Smaller scale and use !important to override rotation */
 }
