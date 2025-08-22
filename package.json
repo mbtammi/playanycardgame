@@ -7,6 +7,7 @@
     "start": "vite",
     "dev": "vite",
     "dev:newsletter": "VITE_DEFAULT_PAGE=newsletter vite",
+    "prod": "VITE_DEFAULT_PAGE=newsletter vite",
     "build": "tsc -b && vite build",
     "build:prod": "tsc -b && vite build --mode production",
     "lint": "eslint .",
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "@types/node": "^24.1.0",
+    "firebase": "^12.1.0",
     "framer-motion": "^12.23.9",
     "lucide-react": "^0.525.0",
     "react": "^19.1.0",

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store';
+import { addEmailToFirestore } from '../utils/firebase';
 import './EmailSignUp.css';
 
 interface EmailSignUpProps {
@@ -24,7 +25,17 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
     }, 5000);
   };
 
-  // Submit email to backend
+  // Submit email to Firebase
+  const submitToFirebase = async (email: string): Promise<boolean> => {
+    try {
+      return await addEmailToFirestore(email);
+    } catch (error) {
+      console.error('Firebase submission error:', error);
+      return false;
+    }
+  };
+
+  // Submit email to backend (fallback)
   const submitToBackend = async (email: string): Promise<boolean> => {
     try {
       const response = await fetch('/api/newsletter', {
@@ -66,8 +77,12 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
 
     setIsSubmitting(true);
 
-    // Try backend first, fallback to localStorage
-    const success = await submitToBackend(trimmedEmail);
+    // Try Firebase first, then backend, then localStorage as final fallback
+    let success = await submitToFirebase(trimmedEmail);
+    
+    if (!success) {
+      success = await submitToBackend(trimmedEmail);
+    }
     
     if (success) {
       showMessage('🎉 Thanks! We\'ll notify you when the game launches!', 'success');
@@ -80,7 +95,7 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
       }
       onComplete?.();
     } else {
-      // Fallback to localStorage if backend fails
+      // Final fallback to localStorage if both Firebase and backend fail
       const localEmails = JSON.parse(localStorage.getItem('gameEmails') || '[]');
       
       if (localEmails.includes(trimmedEmail)) {
@@ -88,7 +103,7 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
       } else {
         localEmails.push(trimmedEmail);
         localStorage.setItem('gameEmails', JSON.stringify(localEmails));
-        showMessage('✅ Saved locally! We\'ll notify you at launch.', 'success');
+        showMessage('✅ We\'ll notify you at launch.', 'success');
         setEmail('');
         onComplete?.();
       }

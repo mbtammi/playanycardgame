@@ -1,0 +1,17 @@
+// Firebase Firestore Security Rules for Newsletter App (Free Plan Compatible)
+// Copy these rules to your Firebase Console > Firestore Database > Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Existing newsletter_emails collection - allow read/write for everyone
+    match /newsletter_emails/{document=**} {
+      allow read, write: if true;
+    }
+    
+    // Deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

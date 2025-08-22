@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store';
+import { getEmailStats } from '../utils/firebase';
 import './AdminDashboard.css';
 
 interface EmailEntry {
-  email: string;
+  id: string;
   timestamp: string;
   source: string;
 }
@@ -15,26 +16,87 @@ interface NewsletterStats {
 }
 
 const AdminDashboard: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
   const [stats, setStats] = useState<NewsletterStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [authError, setAuthError] = useState('');
   const { setCurrentPage } = useAppStore();
 
+  // Check if already authenticated
   useEffect(() => {
-    fetchStats();
+    const isAuth = sessionStorage.getItem('admin_authenticated') === 'true';
+    setIsAuthenticated(isAuth);
+    if (isAuth) {
+      fetchStats();
+    }
   }, []);
 
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'admin123';
+    
+    if (password === adminPassword) {
+      setIsAuthenticated(true);
+      setAuthError('');
+      sessionStorage.setItem('admin_authenticated', 'true');
+      fetchStats();
+    } else {
+      setAuthError('Invalid password');
+    }
+    setPassword('');
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('admin_authenticated');
+    setStats(null);
+  };
+
   const fetchStats = async () => {
+    setLoading(true);
+    setError('');
+    
     try {
-      const response = await fetch('/api/newsletter/stats');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      } else {
-        setError('Failed to fetch stats');
+      // Try Firebase first
+      try {
+        const firebaseStats = await getEmailStats();
+        setStats(firebaseStats);
+        setLoading(false);
+        return;
+      } catch (firebaseError) {
+        console.log('Firebase not available, trying backend...');
       }
+
+      // Try backend server
+      try {
+        const response = await fetch('/api/newsletter/stats');
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+          setLoading(false);
+          return;
+        }
+      } catch (serverError) {
+        console.log('Server not available, using localStorage...');
+      }
+
+      // Final fallback: localStorage
+      const localEmails = JSON.parse(localStorage.getItem('gameEmails') || '[]');
+      const emailEntries = localEmails.map((email: string, index: number) => ({
+        id: `local_${index}`,
+        timestamp: new Date(Date.now() - (localEmails.length - index) * 60000).toISOString(),
+        source: 'localStorage'
+      }));
+
+      setStats({
+        totalSubscribers: localEmails.length,
+        latestSignups: emailEntries.slice(-10).reverse()
+      });
+      
     } catch (err) {
-      setError('Error connecting to server');
+      setError('Error loading email data');
     } finally {
       setLoading(false);
     }
@@ -57,15 +119,44 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="admin-dashboard">
-      <div className="admin-container">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
+      {!isAuthenticated ? (
+        <motion.div 
+          className="admin-login"
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="admin-card"
+          transition={{ duration: 0.5 }}
         >
-          <div className="admin-header">
-            <h1>📧 Newsletter Dashboard</h1>
+          <div className="login-card">
+            <h1>🔐 Admin Access</h1>
+            <p>Enter password to view newsletter dashboard</p>
+            
+            <form onSubmit={handleLogin}>
+              <div className="form-group">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Admin password"
+                  className="password-input"
+                  required
+                />
+              </div>
+              
+              {authError && (
+                <motion.div 
+                  className="error-message"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  {authError}
+                </motion.div>
+              )}
+              
+              <button type="submit" className="login-button">
+                Access Dashboard
+              </button>
+            </form>
+            
             <button 
               onClick={() => setCurrentPage('newsletter')}
               className="back-button"
@@ -73,6 +164,29 @@ const AdminDashboard: React.FC = () => {
               ← Back to Newsletter
             </button>
           </div>
+        </motion.div>
+      ) : (
+        <div className="admin-container">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="admin-card"
+          >
+            <div className="admin-header">
+              <h1>📧 Newsletter Dashboard</h1>
+              <div className="header-actions">
+                <button onClick={handleLogout} className="logout-button">
+                  Logout
+                </button>
+                <button 
+                  onClick={() => setCurrentPage('newsletter')}
+                  className="back-button"
+                >
+                  ← Back to Newsletter
+                </button>
+              </div>
+            </div>
 
           {error ? (
             <div className="error-message">
@@ -86,7 +200,7 @@ const AdminDashboard: React.FC = () => {
               <div className="stats-overview">
                 <div className="stat-card">
                   <div className="stat-number">{stats.totalSubscribers}</div>
-                  <div className="stat-label">Total Subscribers</div>
+                  <div className="stat-label-admin">Total Subscribers</div>
                 </div>
               </div>
 
@@ -103,7 +217,7 @@ const AdminDashboard: React.FC = () => {
                         className="signup-item"
                       >
                         <div className="email-info">
-                          <div className="email">{entry.email}</div>
+                          <div className="email">Subscriber #{stats.totalSubscribers - index}</div>
                           <div className="timestamp">{formatDate(entry.timestamp)}</div>
                         </div>
                         <div className="source-badge">{entry.source}</div>
@@ -124,6 +238,7 @@ const AdminDashboard: React.FC = () => {
           ) : null}
         </motion.div>
       </div>
+      )}
     </div>
   );
 };
