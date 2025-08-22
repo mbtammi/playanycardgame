@@ -198,7 +198,7 @@ export class GameEngine {
     return true;
   }
 
-  executeAction(playerId: string, action: GameAction, cardIds?: string[], target?: string, tableTarget?: any): GameActionResult {
+  executeAction(playerId: string, action: GameAction, cardIds?: string[], target?: string ): GameActionResult {
     if (!this.isValidAction(playerId, action, cardIds)) {
       return {
         playerId,
@@ -292,35 +292,6 @@ export class GameEngine {
     }
   }
 
-  // Blackjack-specific win/bust logic
-  private checkBlackjackWinCondition(): void {
-    const handValues = (this.state as any).handValues as Record<string, number>;
-    const busted = (this.state as any).busted as Record<string, boolean>;
-    // If any player has 21, they win immediately
-    for (const player of this.state.players) {
-      if (handValues[player.id] === 21) {
-        this.state.gameStatus = 'finished';
-        this.state.winner = player.id;
-        return;
-      }
-    }
-    // If all but one player are busted, that player wins
-    const activePlayers = this.state.players.filter(p => !busted[p.id]);
-    if (activePlayers.length === 1) {
-      this.state.gameStatus = 'finished';
-      this.state.winner = activePlayers[0].id;
-      return;
-    }
-    // If all players are busted, no winner
-    if (activePlayers.length === 0) {
-      this.state.gameStatus = 'finished';
-      this.state.winner = undefined;
-      return;
-    }
-    // If all players have stood (not implemented yet), game should end and closest to 21 wins
-    // (This can be improved with a 'stood' state per player)
-  }
-
   /**
    * Draw a card. By default, drawn cards go to discard pile (not hand), unless rules specify otherwise.
    * For games like "draw_black_card", the card is revealed and discarded.
@@ -344,18 +315,18 @@ export class GameEngine {
     (this.state as any).lastDrawnCard = drawnCard;
   }
 
-  private handlePlayAction(player: Player, cardIds: string[]): void {
-    const cardsToPlay = cardIds.map(id => {
-      const cardIndex = player.hand.findIndex(card => card.id === id);
-      if (cardIndex === -1) {
-        throw new Error(`Player doesn't have card ${id}`);
-      }
-      return player.hand.splice(cardIndex, 1)[0];
-    });
+  // private handlePlayAction(player: Player, cardIds: string[]): void {
+  //   const cardsToPlay = cardIds.map(id => {
+  //     const cardIndex = player.hand.findIndex(card => card.id === id);
+  //     if (cardIndex === -1) {
+  //       throw new Error(`Player doesn't have card ${id}`);
+  //     }
+  //     return player.hand.splice(cardIndex, 1)[0];
+  //   });
 
-    // Add to community cards or handle based on game rules
-    this.state.communityCards.push(...cardsToPlay);
-  }
+  //   // Add to community cards or handle based on game rules
+  //   this.state.communityCards.push(...cardsToPlay);
+  // }
 
   private handleDiscardAction(player: Player, cardId: string): void {
     const cardIndex = player.hand.findIndex(card => card.id === cardId);

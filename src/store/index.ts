@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { AppStore, GameState, GameRules, PredefinedGame, Notification, GameMode, RuleBuilderState } from '../types';
+import { getDefaultPage } from '../utils/environment';
 
 const initialRuleBuilderState: RuleBuilderState = {
   currentStep: 0,
@@ -49,8 +50,8 @@ const initialRuleBuilderState: RuleBuilderState = {
 export const useAppStore = create<AppStore>()(
   devtools(
     (set, get) => ({
-      // Navigation state
-      currentPage: 'landing',
+      // Navigation state - use environment-based default
+      currentPage: getDefaultPage(),
       gameMode: 'create',
 
       // Game state

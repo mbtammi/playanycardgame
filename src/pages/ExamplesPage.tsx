@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store';
 import { predefinedGames, getFeaturedGames } from '../utils/predefinedGames';
-import { Play, Users, Clock, ArrowLeft, Star } from 'lucide-react';
+import { Play, Users, Clock, ArrowLeft, Star, Mail } from 'lucide-react';
+import { isDevelopment } from '../utils/environment';
 import './ExamplesPage.css';
 
 const ExamplesPage = () => {
@@ -46,6 +47,18 @@ const ExamplesPage = () => {
             <ArrowLeft size={24} />
             <span>Back to Home</span>
           </button>
+          
+          {/* Development: Newsletter Preview */}
+          {isDevelopment && (
+            <button
+              onClick={() => setCurrentPage('newsletter')}
+              className="dev-newsletter-button"
+              title="Preview Newsletter Page"
+            >
+              <Mail size={20} />
+              <span>Newsletter</span>
+            </button>
+          )}
         </motion.div>
 
         {/* Title Section */}

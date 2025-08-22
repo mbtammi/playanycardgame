@@ -2,12 +2,108 @@ require('dotenv').config();
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
+const fs = require('fs').promises;
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Newsletter signup endpoint
+app.post('/api/newsletter', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    
+    // Create emails directory if it doesn't exist
+    const emailsDir = path.join(__dirname, 'data');
+    const emailsFile = path.join(emailsDir, 'emails.json');
+    
+    try {
+      await fs.mkdir(emailsDir, { recursive: true });
+    } catch (err) {
+      // Directory might already exist
+    }
+    
+    // Read existing emails
+    let emails = [];
+    try {
+      const data = await fs.readFile(emailsFile, 'utf8');
+      emails = JSON.parse(data);
+    } catch (err) {
+      // File might not exist yet
+      emails = [];
+    }
+    
+    // Check if email already exists
+    const existingEmail = emails.find(entry => entry.email === email);
+    if (existingEmail) {
+      return res.status(200).json({ 
+        message: 'Already subscribed!',
+        alreadyExists: true 
+      });
+    }
+    
+    // Add new email with timestamp
+    const newEntry = {
+      email,
+      timestamp: new Date().toISOString(),
+      source: 'website'
+    };
+    
+    emails.push(newEntry);
+    
+    // Save updated emails
+    await fs.writeFile(emailsFile, JSON.stringify(emails, null, 2));
+    
+    console.log(`New newsletter signup: ${email}`);
+    
+    res.status(200).json({ 
+      message: 'Successfully subscribed to newsletter!',
+      success: true
+    });
+    
+  } catch (error) {
+    console.error('Newsletter signup error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get newsletter stats (for admin)
+app.get('/api/newsletter/stats', async (req, res) => {
+  try {
+    const emailsFile = path.join(__dirname, 'data', 'emails.json');
+    
+    try {
+      const data = await fs.readFile(emailsFile, 'utf8');
+      const emails = JSON.parse(data);
+      
+      res.json({
+        totalSubscribers: emails.length,
+        latestSignups: emails.slice(-5).reverse() // Last 5 signups
+      });
+    } catch (err) {
+      res.json({
+        totalSubscribers: 0,
+        latestSignups: []
+      });
+    }
+  } catch (error) {
+    console.error('Newsletter stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 app.post('/api/openai', async (req, res) => {
   const { idea } = req.body;

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store';
-import { Play, BookOpen, Sparkles, Users, Trophy, TrendingUp } from 'lucide-react';
+import { Play, BookOpen, Sparkles, Users, Trophy } from 'lucide-react';
 
 const LandingPage = () => {
   const { setCurrentPage, setGameMode } = useAppStore();

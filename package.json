@@ -6,9 +6,12 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
+    "dev:newsletter": "VITE_DEFAULT_PAGE=newsletter vite",
     "build": "tsc -b && vite build",
+    "build:prod": "tsc -b && vite build --mode production",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:prod": "vite build --mode production && vite preview"
   },
   "dependencies": {
     "@types/node": "^24.1.0",
