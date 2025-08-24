@@ -103,6 +103,7 @@ export const getEmailStats = async () => {
         totalSubscribers: emails.length,
         latestSignups: emails.slice(-10).reverse().map((email: string, index: number) => ({
           id: `array_${index}`,
+          email, // include the email for admin/internal use
           timestamp: data.lastUpdated?.toDate?.()?.toISOString() || new Date().toISOString(),
           source: 'firebase_array'
         }))

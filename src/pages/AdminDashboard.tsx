@@ -86,6 +86,7 @@ const AdminDashboard: React.FC = () => {
       const localEmails = JSON.parse(localStorage.getItem('gameEmails') || '[]');
       const emailEntries = localEmails.map((email: string, index: number) => ({
         id: `local_${index}`,
+        email,
         timestamp: new Date(Date.now() - (localEmails.length - index) * 60000).toISOString(),
         source: 'localStorage'
       }));
