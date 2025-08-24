@@ -31,7 +31,16 @@ export class GameEngine {
       body: JSON.stringify({
         model: 'gpt-4',
         messages: [
-          { role: 'system', content: 'You are an expert card game designer. Output only valid JSON for a GameRules object.' },
+          { role: 'system', content: `You are an expert card game designer. Output only valid JSON for a GameRules object.
+
+IMPORTANT: For asymmetric dealing (different players get different amounts of cards), use "cardsPerPlayerPosition" instead of "cardsPerPlayer".
+
+Example schemas:
+- Symmetric dealing: "setup": { "cardsPerPlayer": 7, "deckSize": 52 }
+- Asymmetric dealing: "setup": { "cardsPerPlayer": 0, "cardsPerPlayerPosition": [3, 7, 7, 7], "deckSize": 52 }
+
+The cardsPerPlayerPosition array represents cards dealt to each player position (0=first player, 1=second, etc.).
+If a player description mentions "I will get X cards and others get Y", use cardsPerPlayerPosition.` },
           { role: 'user', content: `Convert this card game idea into a JSON GameRules object: ${idea}` }
         ],
         temperature: 0.3,
@@ -106,13 +115,24 @@ export class GameEngine {
     // Shuffle deck
     this.deck.shuffle();
 
-    // Deal initial hands
+    // Deal initial hands with support for asymmetric dealing
     let hands: Card[][];
-    if (this.state.rules.setup.cardsPerPlayer === 0) {
+    
+    if (this.state.rules.setup.cardsPerPlayerPosition) {
+      // Use asymmetric dealing: different cards per player position
+      const cardsPerPosition = this.state.rules.setup.cardsPerPlayerPosition;
+      hands = [];
+      
+      for (let i = 0; i < this.state.players.length; i++) {
+        const cardsForThisPlayer = cardsPerPosition[i] || cardsPerPosition[cardsPerPosition.length - 1] || 0;
+        const playerHand = this.deck.deal(cardsForThisPlayer);
+        hands.push(playerHand);
+      }
+    } else if (this.state.rules.setup.cardsPerPlayer === 0) {
       // Deal all cards evenly among players
       hands = this.deck.dealAllEvenly(this.state.players.length);
     } else {
-      // Deal specific number of cards per player
+      // Deal specific number of cards per player (symmetric)
       hands = this.deck.dealHand(
         this.state.players.length,
         this.state.rules.setup.cardsPerPlayer

@@ -945,3 +945,31 @@
 .DeckDiscard {
   padding-inline: 1%;
 }
+
+/* Bot Thinking Animation */
+@keyframes thinking {
+  0%, 20% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+.turn-badge-new:has-text("thinking") {
+  animation: thinking 1.5s ease-in-out infinite;
+}
+
+/* Improved turn indicator styling */
+.turn-badge-new {
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.turn-badge-new:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.15);
+}

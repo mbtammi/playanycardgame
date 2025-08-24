@@ -224,22 +224,54 @@ const blackCardRules: GameRules = {
   ],
 };
 
-export const predefinedGames: PredefinedGame[] = [
-  {
-    id: 'black-card-challenge',
-    name: 'Black Card Challenge',
-    description: 'Test your luck! Draw until you get a black card.',
-    thumbnail: '🖤',
-    difficulty: 'easy',
-    playerCount: '1 player',
-    duration: '1-2 min',
-    rules: blackCardRules,
-    featured: true,
+// Fresh Start Rules (demonstrates asymmetric dealing)
+const freshStartRules: GameRules = {
+  id: 'fresh-start',
+  name: 'Fresh Start',
+  description: '4 players, first player gets 3 cards, others get 7. Play cards in sequence, use 9s and 10s to clear the table.',
+  players: {
+    min: 4,
+    max: 4,
+    recommended: 4,
   },
+  setup: {
+    cardsPerPlayer: 0, // Ignored when cardsPerPlayerPosition is provided
+    cardsPerPlayerPosition: [3, 7, 7, 7], // Player 0 gets 3 cards, others get 7
+    deckSize: 52,
+  },
+  objective: {
+    type: 'custom',
+    description: 'Be the first to empty your hand using strategic play and 9/10 special powers',
+  },
+  turnStructure: {
+    order: 'clockwise',
+    phases: [
+      {
+        name: 'playing',
+        required: true,
+        actions: ['play', 'discard', 'pass'],
+      },
+    ],
+  },
+  actions: ['play', 'discard', 'pass'],
+  winConditions: [
+    {
+      type: 'first_to_empty',
+      description: 'First player to empty their hand wins',
+    },
+  ],
+  specialRules: [
+    'Player with smallest card starts (Ace is smallest, King is highest)',
+    'Playing a 9 or 10 allows you to discard all cards on the table and start fresh with any card',
+    'First player starts with only 3 cards while others get 7',
+  ],
+};
+
+export const predefinedGames: PredefinedGame[] = [
   {
     id: 'go-fish',
     name: 'Go Fish',
-    description: 'Classic card matching game perfect for families',
+    description: 'Classic card matching game for all ages',
     thumbnail: '🐠',
     difficulty: 'easy',
     playerCount: '2-6 players',
@@ -278,6 +310,27 @@ export const predefinedGames: PredefinedGame[] = [
     playerCount: '2-4 players',
     duration: '10-30 min',
     rules: warRules,
+  },
+  {
+    id: 'black-card-challenge',
+    name: 'Black Card Challenge',
+    description: 'Draw cards until you get a black card to win!',
+    thumbnail: '🃏',
+    difficulty: 'easy',
+    playerCount: '1 player',
+    duration: '5-10 min',
+    rules: blackCardRules,
+  },
+  {
+    id: 'fresh-start',
+    name: 'Fresh Start',
+    description: 'Asymmetric dealing with special card powers',
+    thumbnail: '🔄',
+    difficulty: 'medium',
+    playerCount: '4 players',
+    duration: '20-30 min',
+    rules: freshStartRules,
+    featured: true,
   },
   sevensGame,
 ];

@@ -17,6 +17,7 @@ const GamePage = () => {
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [message, setMessage] = useState<React.ReactNode>(null);
   const [isEngineInitialized, setIsEngineInitialized] = useState(false);
+  const [botThinking, setBotThinking] = useState(false);
   const engineRef = useRef<GameEngine | null>(null);
 
   // Only initialize engine when game ID or rules change (not every state update)
@@ -57,15 +58,24 @@ const GamePage = () => {
     if (!currentGame || !engineRef.current) return;
     const current = getCurrentPlayer();
     if (!current || current.type !== 'bot' || currentGame.gameStatus !== 'active') return;
-    // Add a small delay for realism
+    
+    // Show bot thinking indicator
+    setBotThinking(true);
+    
+    // Add a longer delay to prevent showing bot cards and make it feel more natural
     const timeout = setTimeout(() => {
       const { action, cardIds } = getBotAction(currentGame, currentGame.rules, current.id);
       if (engineRef.current) {
         engineRef.current.executeAction(current.id, action, cardIds);
         updateGameState(engineRef.current.getGameState());
       }
-    }, 800);
-    return () => clearTimeout(timeout);
+      setBotThinking(false);
+    }, 1500); // Increased delay from 800ms to 1500ms
+    
+    return () => {
+      clearTimeout(timeout);
+      setBotThinking(false);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentGame?.currentPlayerIndex, currentGame?.gameStatus]);
 
@@ -295,7 +305,7 @@ const GamePage = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="game-table"
+          className="game-table-outer"
         >
           <GameTable>
             {/* Turn feedback - Enhanced for multiplayer */}
@@ -304,6 +314,8 @@ const GamePage = () => {
                 <span className="turn-badge-new">
                   {isUserTurn()
                     ? "🎯 Your turn!"
+                    : botThinking
+                    ? `🤔 ${getCurrentPlayer()?.name} is thinking...`
                     : `⏳ ${getCurrentPlayer()?.name}'s turn`}
                 </span>
                 {currentGame.players.length > 1 && (
@@ -346,7 +358,9 @@ const GamePage = () => {
                   const keepDrawn = currentGame.rules?.setup?.keepDrawnCard !== false;
                   
                   // For single player games, hide human hand if keepDrawnCard is false
-                  if (!isMultiplayer && player.type === 'human' && !keepDrawn) {
+                  // BUT keep the player visible for draw-based games so action buttons work
+                  if (!isMultiplayer && player.type === 'human' && !keepDrawn && 
+                      !currentGame.rules.actions.includes('draw')) {
                     return null;
                   }
 
@@ -362,7 +376,7 @@ const GamePage = () => {
                               <Card
                                 suit={card.suit}
                                 rank={card.rank}
-                                faceDown={player.type === 'bot' && !isCurrent}
+                                faceDown={player.type === 'bot'} // Always hide bot cards
                                 onClick={
                                   isCurrent && player.type === 'human' && isUserTurn()
                                     ? () => toggleCardSelect(card.id)
@@ -627,7 +641,10 @@ const GamePage = () => {
               {!isUserTurn() && currentGame.gameStatus === 'active' && currentGame.players.length > 1 && (
                 <div className="text-center">
                   <span className="px-6 py-3 rounded-full bg-gray-100 text-gray-600 font-medium">
-                    ⏳ Waiting for {getCurrentPlayer()?.name}...
+                    {botThinking 
+                      ? `🤔 ${getCurrentPlayer()?.name} is thinking...`
+                      : `⏳ Waiting for ${getCurrentPlayer()?.name}...`
+                    }
                   </span>
                 </div>
               )}

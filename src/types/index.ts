@@ -23,6 +23,13 @@ export interface GameRules {
   };
   setup: {
     cardsPerPlayer: number;
+    /**
+     * Alternative to cardsPerPlayer for asymmetric dealing.
+     * Array where each index corresponds to player position.
+     * If provided, overrides cardsPerPlayer.
+     * Example: [3, 7, 7, 7] means player 0 gets 3 cards, others get 7.
+     */
+    cardsPerPlayerPosition?: number[];
     deckSize: number;
     specialCards?: string[];
     /**
