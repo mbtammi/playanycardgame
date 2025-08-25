@@ -305,26 +305,25 @@ const GamePage = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="game-table-outer"
+          className="game-area-container"
         >
-          <GameTable>
-            {/* Turn feedback - Enhanced for multiplayer */}
-            <div className="turn-indicator">
-              <div className="inline-block">
-                <span className="turn-badge-new">
-                  {isUserTurn()
-                    ? "🎯 Your turn!"
-                    : botThinking
-                    ? `🤔 ${getCurrentPlayer()?.name} is thinking...`
-                    : `⏳ ${getCurrentPlayer()?.name}'s turn`}
-                </span>
-                {currentGame.players.length > 1 && (
-                  <div className="turn-meta-new">
-                    Turn {currentGame.turn} • Round {currentGame.round}
-                  </div>
-                )}
-              </div>
+          {/* Turn feedback - Enhanced for multiplayer */}
+          <div className="turn-indicator">
+            <div className="inline-block">
+              <span className="turn-badge-new">
+                {isUserTurn()
+                  ? "🎯 Your turn!"
+                  : botThinking
+                  ? `🤔 ${getCurrentPlayer()?.name} is thinking...`
+                  : `⏳ ${getCurrentPlayer()?.name}'s turn`}
+              </span>
+              {currentGame.players.length > 1 && (
+                <div className="turn-meta-new">
+                  Turn {currentGame.turn} • Round {currentGame.round}
+                </div>
+              )}
             </div>
+          </div>
 
             {/* All Players Display */}
             <div className="w-full mb-8">
@@ -384,7 +383,7 @@ const GamePage = () => {
                                 }
                                 selected={selectedCards.includes(card.id)}
                               />
-                              {/* Show playability indicator for Sevens */}
+                              {/* Show playability indicator for interactive games */}
                               {isPlayable && (
                                 <div className="check-indicator-small">
                                   <span className="check-text">✓</span>
@@ -424,131 +423,92 @@ const GamePage = () => {
               </div>
             </div>
 
-            {/* Community Cards/Table Area */}
-            {(currentGame.rules.id === 'sevens') || 
-             (currentGame.communityCards && currentGame.communityCards.length > 0) ? (
-              <div className="flex flex-col items-center mb-12"> {/* Increased bottom margin */}
-                <div className="font-semibold text-gray-700 mb-4 text-lg">Table</div>
-                <div className="bg-green-100 rounded-xl p-8 min-w-96 min-h-40"> {/* Increased padding */}
-                  <div className="grid grid-cols-4 gap-6 justify-items-center"> {/* Increased gap */}
-                    {/* Sevens-specific table display */}
-                    {currentGame.rules.id === 'sevens' && (currentGame as any).table ? (
-                      ['hearts', 'diamonds', 'clubs', 'spades'].map(suit => {
-                        const suitCards = (currentGame as any).table[suit] || [];
-                        const { symbol, color } = getSuitSymbol(suit);
-                        return (
-                          <div key={suit} className="flex flex-col items-center">
-                            <div className={`text-sm font-medium mb-2 capitalize ${color}`}>
-                              {suit} {symbol}
+            {/* Universal Game Table - AI-driven and context-aware */}
+            <div className="game-table-outer">
+              <GameTable
+                table={(currentGame as any).table}
+                gameRules={currentGame.rules}
+                tableData={engineRef.current?.getTableDisplayData?.()}
+                layout={engineRef.current?.getOptimalTableLayout?.() || 'centered'}
+                flexiblePlacement={engineRef.current?.getTableDisplayData?.()?.metadata?.flexiblePlacement || false}
+                playerCount={currentGame.players.length}
+                onCardDrop={(cardId: string, targetSuit: string, position?: 'before' | 'after') => {
+                  // Enhanced card drop handling for flexible placement
+                  if (engineRef.current && isUserTurn()) {
+                    try {
+                      // Log placement details for debugging
+                      console.log(`Placing ${cardId} in ${targetSuit} suit at ${position || 'default'} position`);
+                      
+                      const result = engineRef.current.executeAction(
+                        getCurrentPlayer()?.id || '',
+                        'play',
+                        [cardId]
+                      );
+                      if (result.success) {
+                        updateGameState(engineRef.current.getGameState());
+                        setSelectedCards([]); // Clear selection after successful play
+                        setMessage(result.message);
+                      } else {
+                        setMessage(result.message);
+                      }
+                    } catch (error) {
+                      setMessage('Invalid move. Please try again.');
+                    }
+                  }
+                }}
+              >
+                {/* Community Cards/Table Area - Enhanced with Dynamic Layout */}
+                {currentGame.communityCards && currentGame.communityCards.length > 0 ? (
+                  <div className="flex flex-col items-center mb-12">
+                    <div className="font-semibold text-gray-700 mb-4 text-lg">Table</div>
+                    <div className="bg-green-100 rounded-xl p-8 min-w-96 min-h-40">
+                      <div className="grid grid-cols-4 gap-6 justify-items-center">
+                        {['hearts', 'diamonds', 'clubs', 'spades'].map(suit => {
+                          const suitCards = currentGame.communityCards.filter(card => card.suit === suit);
+                          return (
+                            <div key={suit} className="flex flex-col items-center">
+                              <div className="text-sm font-medium text-gray-600 mb-2 capitalize">{suit}</div>
+                              <div className="flex flex-wrap justify-center gap-1">
+                                {suitCards.length > 0 ? (
+                                  <CardStack 
+                                    cards={suitCards.sort((a, b) => {
+                                      const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+                                      return ranks.indexOf(a.rank) - ranks.indexOf(b.rank);
+                                    })}
+                                    stackType="messy"
+                                    maxVisible={10}
+                                  />
+                                ) : (
+                                  <div className="card-stack-empty">
+                                    Empty
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex flex-wrap justify-center gap-1">
-                              {suitCards.length > 0 ? (
-                                (() => {
-                                  // Calculate required width and height for the stack
-                                  const cardWidth = 64; // Standard card width
-                                  const cardHeight = 96; // Standard card height
-                                  const stackWidth = cardWidth + (suitCards.length - 1) * 8; // Reduced spacing to match positioning
-                                  const stackHeight = cardHeight + (suitCards.length - 1) * 1; // Reduced height to match positioning
-                                  
-                                  return (
-                                    <div 
-                                      className="relative"
-                                      style={{ 
-                                        width: `${stackWidth}px`, 
-                                        height: `${stackHeight}px`,
-                                        minHeight: '96px', // Ensure minimum card height
-                                        minWidth: '64px'   // Ensure minimum card width
-                                      }}
-                                    >
-                                      {/* Clean sequence stack for Sevens - cards in a neat line */}
-                                      {suitCards
-                                        .sort((a: any, b: any) => {
-                                          const getValue = (rank: string) => {
-                                            switch (rank) {
-                                              case 'A': return 14;
-                                              case 'K': return 13;
-                                              case 'Q': return 12;
-                                              case 'J': return 11;
-                                              default: return parseInt(rank);
-                                            }
-                                          };
-                                          return getValue(a.rank) - getValue(b.rank);
-                                        })
-                                        .map((card: any, index: number) => (
-                                          <div 
-                                            key={card.id} 
-                                            className="card-in-stack"
-                                            style={{ 
-                                              left: `${index * 8}px`, // Reduced horizontal spacing for tighter stack
-                                              top: `${index * 1}px`,   // Reduced vertical offset for tighter stack
-                                              zIndex: index + 1,
-                                              transform: `rotate(${index * 0.3}deg)` // Reduced rotation for subtlety
-                                            }}
-                                          >
-                                            <Card suit={card.suit} rank={card.rank} />
-                                          </div>
-                                        ))}
-                                    </div>
-                                  );
-                                })()
-                              ) : (
-                                <div className="card-stack-empty">
-                                  Empty
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      /* Generic community cards display for other games - messy pile style */
-                      ['hearts', 'diamonds', 'clubs', 'spades'].map(suit => {
-                        const suitCards = currentGame.communityCards.filter(card => card.suit === suit);
-                        return (
-                          <div key={suit} className="flex flex-col items-center">
-                            <div className="text-sm font-medium text-gray-600 mb-2 capitalize">{suit}</div>
-                            <div className="flex flex-wrap justify-center gap-1">
-                              {suitCards.length > 0 ? (
-                                <CardStack 
-                                  cards={suitCards.sort((a, b) => {
-                                    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-                                    return ranks.indexOf(a.rank) - ranks.indexOf(b.rank);
-                                  })}
-                                  stackType="messy"
-                                  maxVisible={10}
-                                />
-                              ) : (
-                                <div className="card-stack-empty">
-                                  Empty
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ) : null}
+                ) : null}
 
-            {/* Card stack (discard pile) for draw-and-reveal games */}
-            {currentGame.discardPile && currentGame.discardPile.length > 0 && !currentGame.communityCards?.length && (
-              <div className="flex flex-col items-center mb-8">
-                <div className="font-semibold text-gray-700 mb-2">Drawn Cards</div>
-                <CardStack 
-                  cards={currentGame.discardPile}
-                  stackType="messy"
-                  maxVisible={10}
-                />
-              </div>
-            )}
+                {/* Card stack (discard pile) for draw-and-reveal games */}
+                {currentGame.discardPile && currentGame.discardPile.length > 0 && !currentGame.communityCards?.length && (
+                  <div className="flex flex-col items-center mb-8">
+                    <div className="font-semibold text-gray-700 mb-2">Drawn Cards</div>
+                    <CardStack 
+                      cards={currentGame.discardPile}
+                      stackType="messy"
+                      maxVisible={10}
+                    />
+                  </div>
+                )}
 
-            {/* Action buttons for current player (only show for human's turn) */}
-            <div className="flex flex-wrap gap-4 justify-center mb-6">
+                {/* Action buttons for current player (only show for human's turn) */}
+                <div className="flex flex-wrap gap-4 justify-center mb-6">
               {engineRef.current && isUserTurn() && currentGame.gameStatus === 'active' && (
                 <>
-                  {/* Show intelligent hints for Sevens */}
+                  {/* Show intelligent hints for sequence games */}
                   {currentGame.rules.id === 'sevens' && (
                     <div className="w-full text-center mb-2">
                       {(() => {
@@ -750,12 +710,13 @@ const GamePage = () => {
             <div className="flex flex-row gap-8 justify-center mt-4">
               <div className="bg-white rounded-lg shadow ">
                 <span className="font-bold DeckDiscard">Deck:</span> {currentGame.deck.length} cards
+                </div>
+                <div className="bg-white rounded-lg shadow ">
+                  <span className="font-bold DeckDiscard">Discard:</span> {currentGame.discardPile.length} cards
+                </div>
               </div>
-              <div className="bg-white rounded-lg shadow ">
-                <span className="font-bold DeckDiscard">Discard:</span> {currentGame.discardPile.length} cards
-              </div>
-            </div>
-          </GameTable>
+            </GameTable>
+          </div>
         </motion.div>
 
         {/* Game Rules */}
@@ -913,7 +874,8 @@ const GamePage = () => {
             </div>
           </motion.div>
         )}
-      </div>
+        {/* End of debug panel */}
+        </div>
       </div>
     </div>
   );

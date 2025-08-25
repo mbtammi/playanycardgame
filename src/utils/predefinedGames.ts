@@ -222,6 +222,10 @@ const blackCardRules: GameRules = {
     'If you draw a black card (clubs ♣ or spades ♠), you win immediately!',
     'Red cards (hearts ♥ or diamonds ♦) continue the game',
   ],
+  tableLayout: {
+    preferred: 'centered',
+    allowFlexiblePlacement: false
+  },
 };
 
 // Fresh Start Rules (demonstrates asymmetric dealing)

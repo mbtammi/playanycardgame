@@ -29,7 +29,7 @@ export class GameEngine {
         'Authorization': `Bearer ${openAIApiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: `You are an expert card game designer. Output only valid JSON for a GameRules object.
 
@@ -430,125 +430,114 @@ If a player description mentions "I will get X cards and others get Y", use card
     const description = condition.description.toLowerCase();
     console.log(`🎯 Evaluating custom win condition for ${player.name}: "${description}"`);
     
+    // Check the condition type for specific win conditions
+    if (condition.type === 'black_card') {
+      return this.checkBlackCardWin(player);
+    }
+    
+    if (condition.type === 'red_card') {
+      return this.checkRedCardWin(player);
+    }
+    
     // Handle "draw/lift black card to win" scenarios
     if (description.includes('black') && description.includes('win')) {
-      const lastAction = this.state.lastAction;
-      console.log(`📋 Last action:`, lastAction);
-      const lastDrawnCard = (this.state as any).lastDrawnCard;
-      console.log(`🃏 Last drawn card:`, lastDrawnCard);
-      
-      if (lastAction && lastAction.playerId === player.id && lastAction.action === 'draw') {
-        // Check if the last drawn card was black
-        if (lastDrawnCard && (lastDrawnCard.suit === 'clubs' || lastDrawnCard.suit === 'spades')) {
-          console.log(`🎉 WIN CONDITION MET: ${player.name} drew a black card!`);
-          return true;
-        }
-      }
+      return this.checkBlackCardWin(player);
     }
     
     // Handle "draw/lift red card to win" scenarios
     if (description.includes('red') && description.includes('win')) {
-      const lastAction = this.state.lastAction;
-      if (lastAction && lastAction.playerId === player.id && lastAction.action === 'draw') {
-        const lastDrawnCard = (this.state as any).lastDrawnCard;
-        if (lastDrawnCard && (lastDrawnCard.suit === 'hearts' || lastDrawnCard.suit === 'diamonds')) {
-          console.log(`🎉 WIN CONDITION MET: ${player.name} drew a red card!`);
-          return true;
-        }
-      }
+      return this.checkRedCardWin(player);
     }
     
     // Handle "draw specific rank to win" scenarios
     const rankMatches = description.match(/(?:draw|lift).*?([akqj]|ace|king|queen|jack|\d+).*?win/);
     if (rankMatches) {
       const targetRank = this.normalizeRank(rankMatches[1]);
-      const lastAction = this.state.lastAction;
-      if (lastAction && lastAction.playerId === player.id && lastAction.action === 'draw') {
-        const lastDrawnCard = (this.state as any).lastDrawnCard;
-        if (lastDrawnCard && this.normalizeRank(lastDrawnCard.rank) === targetRank) {
-          console.log(`🎉 WIN CONDITION MET: ${player.name} drew a ${targetRank}!`);
-          return true;
-        }
-      }
+      return this.checkSpecificRankWin(player, targetRank);
     }
     
     // Handle "collect X cards to win" scenarios
     const collectMatches = description.match(/collect.*?(\d+).*?cards?.*?win/);
     if (collectMatches) {
       const targetCount = parseInt(collectMatches[1]);
-      const hasEnough = player.hand.length >= targetCount;
-      if (hasEnough) {
-        console.log(`🎉 WIN CONDITION MET: ${player.name} has ${player.hand.length} cards (need ${targetCount})!`);
-      }
-      return hasEnough;
+      return player.hand.length >= targetCount;
     }
     
     // Handle "reach X points to win" scenarios
     const pointMatches = description.match(/reach.*?(\d+).*?points?.*?win/);
     if (pointMatches) {
       const targetPoints = parseInt(pointMatches[1]);
-      const currentPoints = this.state.scores[player.id];
-      const hasEnough = currentPoints >= targetPoints;
-      if (hasEnough) {
-        console.log(`🎉 WIN CONDITION MET: ${player.name} has ${currentPoints} points (need ${targetPoints})!`);
-      }
-      return hasEnough;
+      return (this.state.scores[player.id] || 0) >= targetPoints;
     }
     
     // Handle "empty hand to win" scenarios
     if (description.includes('empty hand') || description.includes('no cards')) {
-      const isEmpty = player.hand.length === 0;
-      if (isEmpty) {
-        console.log(`🎉 WIN CONDITION MET: ${player.name} has an empty hand!`);
-      }
-      return isEmpty;
+      return player.hand.length === 0;
     }
     
     // Handle suit-based win conditions
     if (description.includes('all hearts') || description.includes('only hearts')) {
-      const allHearts = player.hand.every(card => card.suit === 'hearts');
-      if (allHearts && player.hand.length > 0) {
-        console.log(`🎉 WIN CONDITION MET: ${player.name} has all hearts!`);
-      }
-      return allHearts && player.hand.length > 0;
+      return player.hand.length > 0 && player.hand.every(card => card.suit === 'hearts');
     }
     if (description.includes('all diamonds') || description.includes('only diamonds')) {
-      const allDiamonds = player.hand.every(card => card.suit === 'diamonds');
-      if (allDiamonds && player.hand.length > 0) {
-        console.log(`🎉 WIN CONDITION MET: ${player.name} has all diamonds!`);
-      }
-      return allDiamonds && player.hand.length > 0;
+      return player.hand.length > 0 && player.hand.every(card => card.suit === 'diamonds');
     }
     if (description.includes('all clubs') || description.includes('only clubs')) {
-      const allClubs = player.hand.every(card => card.suit === 'clubs');
-      if (allClubs && player.hand.length > 0) {
-        console.log(`🎉 WIN CONDITION MET: ${player.name} has all clubs!`);
-      }
-      return allClubs && player.hand.length > 0;
+      return player.hand.length > 0 && player.hand.every(card => card.suit === 'clubs');
     }
     if (description.includes('all spades') || description.includes('only spades')) {
-      const allSpades = player.hand.every(card => card.suit === 'spades');
-      if (allSpades && player.hand.length > 0) {
-        console.log(`🎉 WIN CONDITION MET: ${player.name} has all spades!`);
-      }
-      return allSpades && player.hand.length > 0;
+      return player.hand.length > 0 && player.hand.every(card => card.suit === 'spades');
     }
     
     // Handle "have all of same rank" scenarios
     if (description.includes('all') && (description.includes('same') || description.includes('matching'))) {
-      if (player.hand.length > 0) {
-        const firstRank = player.hand[0].rank;
-        const allSame = player.hand.every(card => card.rank === firstRank);
-        if (allSame) {
-          console.log(`🎉 WIN CONDITION MET: ${player.name} has all ${firstRank}s!`);
-        }
-        return allSame;
-      }
+      if (player.hand.length === 0) return false;
+      const firstRank = player.hand[0].rank;
+      return player.hand.every(card => card.rank === firstRank);
     }
     
     console.log(`❌ No matching win condition pattern found for: "${description}"`);
     // Default: return false for unrecognized custom conditions
     return false;
+  }
+
+  private checkBlackCardWin(player: Player): boolean {
+    // Check if the last drawn card (in discard pile) is black
+    const lastDrawnCard = (this.state as any).lastDrawnCard;
+    if (lastDrawnCard) {
+      const isBlack = lastDrawnCard.suit === 'clubs' || lastDrawnCard.suit === 'spades';
+      console.log(`🃏 Last drawn card: ${lastDrawnCard.rank} of ${lastDrawnCard.suit} (${isBlack ? 'BLACK' : 'RED'})`);
+      return isBlack;
+    }
+    
+    // Fallback: check if player has any black cards
+    return player.hand.some(card => card.suit === 'clubs' || card.suit === 'spades');
+  }
+
+  private checkRedCardWin(player: Player): boolean {
+    // Check if the last drawn card (in discard pile) is red
+    const lastDrawnCard = (this.state as any).lastDrawnCard;
+    if (lastDrawnCard) {
+      const isRed = lastDrawnCard.suit === 'hearts' || lastDrawnCard.suit === 'diamonds';
+      console.log(`🃏 Last drawn card: ${lastDrawnCard.rank} of ${lastDrawnCard.suit} (${isRed ? 'RED' : 'BLACK'})`);
+      return isRed;
+    }
+    
+    // Fallback: check if player has any red cards
+    return player.hand.some(card => card.suit === 'hearts' || card.suit === 'diamonds');
+  }
+
+  private checkSpecificRankWin(player: Player, targetRank: string): boolean {
+    // Check if the last drawn card matches the target rank
+    const lastDrawnCard = (this.state as any).lastDrawnCard;
+    if (lastDrawnCard) {
+      const matches = lastDrawnCard.rank === targetRank;
+      console.log(`🃏 Last drawn card: ${lastDrawnCard.rank} (looking for ${targetRank}) - ${matches ? 'MATCH!' : 'no match'}`);
+      return matches;
+    }
+    
+    // Fallback: check if player has the target rank
+    return player.hand.some(card => card.rank === targetRank);
   }
   
   private normalizeRank(rank: string): string {
@@ -615,10 +604,396 @@ If a player description mentions "I will get X cards and others get Y", use card
     };
   }
 
+  // ===== ENHANCED TABLE MANAGEMENT =====
+  
+  /**
+   * Auto-determine optimal table layout based on game rules and current state
+   */
+  getOptimalTableLayout(): 'grid' | 'centered' | 'sequence' {
+    // Analyze game rules to determine layout
+    const rules = this.state.rules;
+    const table = (this.state as any).table || {};
+    
+    // 1. Check for explicit layout preference in rules
+    if (rules.tableLayout?.preferred) {
+      return rules.tableLayout.preferred;
+    }
+    
+    // 2. Check if this is a pure deck-drawing game (no table play)
+    const onlyDrawActions = rules.actions.every(action => 
+      ['draw', 'pass'].includes(action) && !['play', 'discard', 'playToTable'].includes(action)
+    );
+    
+    if (onlyDrawActions && Object.keys(table).length === 0) {
+      return 'centered'; // Simple layout for deck-only games
+    }
+    
+    // 3. Check for sequence-building indicators in rules
+    const hasSequenceRules = rules.specialRules?.some(rule => 
+      rule.toLowerCase().includes('build') || 
+      rule.toLowerCase().includes('sequence') ||
+      rule.toLowerCase().includes('up') && rule.toLowerCase().includes('down') ||
+      rule.toLowerCase().includes('consecutive')
+    );
+    
+    // 4. Check actual table state for sequences
+    const hasLongSequences = Object.values(table).some((cards: any) => 
+      Array.isArray(cards) && cards.length > 5
+    );
+    
+    // 5. Check for suit-based organization
+    const hasSuitBasedTable = Object.keys(table).some(key => 
+      ['hearts', 'diamonds', 'clubs', 'spades'].includes(key)
+    );
+    
+    // Layout decision logic
+    if (hasSequenceRules || hasLongSequences) {
+      return 'sequence';
+    }
+    
+    if (hasSuitBasedTable && Object.keys(table).length > 2) {
+      return 'grid';
+    }
+    
+    // Default to centered layout for most card games
+    return 'centered';
+  }
+
+  /**
+   * Get enhanced table display data with AI-driven layout detection
+   */
+  getTableDisplayData(): {
+    tableType: 'none' | 'suit-based' | 'pile-based' | 'sequence' | 'scattered' | 'custom';
+    table: Record<string, Card[]> | Card[] | any;
+    layout: 'grid' | 'centered' | 'sequence' | 'scattered' | 'custom';
+    zones: Array<{
+      id: string;
+      type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard';
+      cards: Card[];
+      position?: { x: number; y: number };
+      allowDrop?: boolean;
+      label?: string;
+    }>;
+    metadata: {
+      gameType: string;
+      needsTable: boolean;
+      centerCard?: Card;
+      validDropZones?: string[];
+      playerCount: number;
+      flexiblePlacement: boolean;
+    };
+  } {
+    const rules = this.state.rules;
+    const table = (this.state as any).table || {};
+    const layout = this.getOptimalTableLayout();
+    
+    // Determine if game needs a table at all
+    const needsTable = this.analyzeTableNeed();
+    const tableType = this.detectTableType(table, rules);
+    const zones = this.generateTableZones(table, rules, tableType);
+    
+    return {
+      tableType,
+      table: needsTable ? table : {},
+      layout: needsTable ? layout : 'centered',
+      zones,
+      metadata: {
+        gameType: rules.id,
+        needsTable,
+        centerCard: this.getCenterCard(),
+        validDropZones: this.getValidDropZones(),
+        playerCount: this.state.players.length,
+        flexiblePlacement: this.supportsFlexiblePlacement(),
+      }
+    };
+  }
+
+  /**
+   * AI-driven analysis: Does this game need a table display?
+   */
+  private analyzeTableNeed(): boolean {
+    const rules = this.state.rules;
+    const table = (this.state as any).table || {};
+    
+    // 1. If table has cards, it's needed
+    if (Object.keys(table).length > 0 && Object.values(table).some((cards: any) => Array.isArray(cards) && cards.length > 0)) {
+      return true;
+    }
+    
+    // 2. Check if game rules suggest table play
+    const hasTableActions = rules.actions.some(action => 
+      ['play', 'playToTable', 'discard'].includes(action)
+    );
+    
+    const hasTableRules = rules.specialRules?.some(rule => 
+      rule.toLowerCase().includes('table') ||
+      rule.toLowerCase().includes('pile') ||
+      rule.toLowerCase().includes('center') ||
+      rule.toLowerCase().includes('build')
+    );
+    
+    // 3. Pure draw games typically don't need tables
+    const onlyDrawActions = rules.actions.every(action => 
+      ['draw', 'pass'].includes(action)
+    );
+    
+    if (onlyDrawActions && !hasTableRules) {
+      return false;
+    }
+    
+    return (hasTableActions || hasTableRules) ?? false;
+  }
+
+  /**
+   * AI-driven table type detection
+   */
+  private detectTableType(table: any, rules: GameRules): 'none' | 'suit-based' | 'pile-based' | 'sequence' | 'scattered' | 'custom' {
+    if (!this.analyzeTableNeed()) return 'none';
+    
+    // Check if explicitly suit-based
+    const hasSuitKeys = Object.keys(table).some(key => 
+      ['hearts', 'diamonds', 'clubs', 'spades'].includes(key)
+    );
+    
+    if (hasSuitKeys) return 'suit-based';
+    
+    // Check for sequence building
+    const hasSequenceRules = rules.specialRules?.some(rule => 
+      rule.toLowerCase().includes('build') ||
+      rule.toLowerCase().includes('sequence') ||
+      rule.toLowerCase().includes('consecutive')
+    );
+    
+    if (hasSequenceRules) return 'sequence';
+    
+    // Check for pile-based games
+    const hasPileRules = rules.specialRules?.some(rule => 
+      rule.toLowerCase().includes('pile') ||
+      rule.toLowerCase().includes('stack')
+    );
+    
+    if (hasPileRules) return 'pile-based';
+    
+    // Check for scattered/search games
+    const hasScatteredRules = rules.specialRules?.some(rule => 
+      rule.toLowerCase().includes('scatter') ||
+      rule.toLowerCase().includes('find') ||
+      rule.toLowerCase().includes('search')
+    );
+    
+    if (hasScatteredRules) return 'scattered';
+    
+    return 'custom';
+  }
+
+  /**
+   * Generate table zones based on game type and AI analysis
+   */
+  private generateTableZones(table: any, _rules: GameRules, tableType: string): Array<{
+    id: string;
+    type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard';
+    cards: Card[];
+    position?: { x: number; y: number };
+    allowDrop?: boolean;
+    label?: string;
+  }> {
+    const zones: Array<{
+      id: string;
+      type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard';
+      cards: Card[];
+      position?: { x: number; y: number };
+      allowDrop?: boolean;
+      label?: string;
+    }> = [];
+    
+    switch (tableType) {
+      case 'none':
+        // No table zones needed
+        break;
+        
+      case 'suit-based':
+        // Create suit-based zones
+        ['hearts', 'diamonds', 'clubs', 'spades'].forEach((suit, index) => {
+          zones.push({
+            id: suit,
+            type: 'sequence' as const,
+            cards: table[suit] || [],
+            allowDrop: true,
+            label: suit,
+            position: { x: index * 200, y: 0 }
+          });
+        });
+        break;
+        
+      case 'pile-based':
+        // Create pile zones
+        Object.keys(table).forEach((key, index) => {
+          zones.push({
+            id: key,
+            type: 'pile' as const,
+            cards: table[key] || [],
+            allowDrop: true,
+            label: key,
+            position: { x: index * 150, y: 0 }
+          });
+        });
+        break;
+        
+      case 'scattered':
+        // Create scattered card positions (AI-generated)
+        const allCards = Object.values(table).flat() as Card[];
+        allCards.forEach((card, index) => {
+          zones.push({
+            id: `card-${index}`,
+            type: 'pile' as const,
+            cards: [card],
+            allowDrop: false,
+            position: {
+              x: Math.random() * 800,
+              y: Math.random() * 400
+            }
+          });
+        });
+        break;
+        
+      default:
+        // Custom layout - let AI decide
+        break;
+    }
+    
+    return zones;
+  }
+
+  /**
+   * Check if the current game supports flexible card placement
+   */
+  private supportsFlexiblePlacement(): boolean {
+    // Games with 1-8 players that allow free-form placement
+    const flexibleGames = ['sevens', 'solitaire', 'patience', 'spider'];
+    return (
+      this.state.players.length >= 1 && 
+      this.state.players.length <= 8 &&
+      (flexibleGames.includes(this.state.rules.id) || 
+       this.state.rules.turnStructure?.order === 'free')
+    );
+  }
+
+  /**
+   * Enhanced method to validate card placement for flexible games
+   */
+  canPlaceCardAt(cardId: string, targetSuit: string, position?: 'before' | 'after' | 'center'): boolean {
+    const currentPlayer = this.getCurrentPlayer();
+    if (!currentPlayer) return false;
+
+    const card = currentPlayer.hand.find(c => c.id === cardId);
+    if (!card) return false;
+
+    // For Sevens, use existing validation
+    if (this.state.rules.id === 'sevens') {
+      return this.canPlayCardToSuit(card, targetSuit, ((this.state as any).table || {})[targetSuit] || []);
+    }
+
+    // For flexible placement games, allow more freedom
+    if (this.supportsFlexiblePlacement()) {
+      // Basic suit matching for most games
+      if (card.suit !== targetSuit) return false;
+      
+      const table = (this.state as any).table || {};
+      const suitCards = table[targetSuit] || [];
+      
+      // If no cards in suit, allow any card
+      if (suitCards.length === 0) return true;
+      
+      // For positioned placement, check adjacency
+      if (position) {
+        return this.isValidAdjacentPlacement(card, suitCards, position);
+      }
+      
+      return true; // Allow free placement
+    }
+
+    return false;
+  }
+
+  private isValidAdjacentPlacement(card: Card, existingCards: Card[], position: 'before' | 'after' | 'center'): boolean {
+    if (existingCards.length === 0) return true;
+
+    const cardValue = this.getCardNumericValue(card.rank);
+    const existingValues = existingCards.map(c => this.getCardNumericValue(c.rank)).sort((a, b) => a - b);
+    
+    switch (position) {
+      case 'before':
+        return cardValue === existingValues[0] - 1;
+      case 'after':
+        return cardValue === existingValues[existingValues.length - 1] + 1;
+      case 'center':
+        // Allow insertion if it creates a valid sequence
+        return existingValues.some((val, idx) => 
+          idx > 0 && cardValue > existingValues[idx - 1] && cardValue < val
+        );
+      default:
+        return false;
+    }
+  }
+
+  private getCenterCard(): Card | undefined {
+    // For Sevens, find the center card (7) of each suit to highlight the starting point
+    if (this.state.rules.id === 'sevens') {
+      const table = (this.state as any).table || {};
+      for (const suit of ['hearts', 'diamonds', 'clubs', 'spades']) {
+        const suitCards = table[suit] || [];
+        const sevenCard = suitCards.find((card: Card) => card.rank === '7');
+        if (sevenCard) return sevenCard;
+      }
+    }
+    return undefined;
+  }
+
+  private getValidDropZones(): string[] {
+    const currentPlayer = this.getCurrentPlayer();
+    if (!currentPlayer) return [];
+    
+    // For Sevens, return suits where the current player can place cards
+    if (this.state.rules.id === 'sevens') {
+      const validSuits: string[] = [];
+      const table = (this.state as any).table || {};
+      
+      for (const card of currentPlayer.hand) {
+        for (const suit of ['hearts', 'diamonds', 'clubs', 'spades']) {
+          if (this.canPlayCardToSuit(card, suit, table[suit] || [])) {
+            if (!validSuits.includes(suit)) validSuits.push(suit);
+          }
+        }
+      }
+      return validSuits;
+    }
+    
+    return [];
+  }
+
+  private canPlayCardToSuit(card: Card, suit: string, suitCards: Card[]): boolean {
+    if (card.suit !== suit) return false;
+    
+    // If no cards in suit, can only play 7
+    if (suitCards.length === 0) {
+      return card.rank === '7';
+    }
+    
+    // Find the range of cards already played
+    const ranks = suitCards.map(c => this.getCardNumericValue(c.rank)).sort((a, b) => a - b);
+    const minRank = ranks[0];
+    const maxRank = ranks[ranks.length - 1];
+    
+    const cardValue = this.getCardNumericValue(card.rank);
+    
+    // Can play if adjacent to existing cards
+    return cardValue === minRank - 1 || cardValue === maxRank + 1;
+  }
+
   // ===== SEVENS GAME SPECIFIC METHODS =====
   
   private initializeSevensGame(): void {
-    // Initialize the table structure for Sevens
+    // Initialize the table structure for Sevens with enhanced centering
     // Table will store cards organized by suit: { hearts: [], diamonds: [], clubs: [], spades: [] }
     (this.state as any).table = {
       hearts: [],
@@ -627,22 +1002,42 @@ If a player description mentions "I will get X cards and others get Y", use card
       spades: []
     };
     
-    // Find who has the 7 of diamonds to start first
+    // Find who has the 7 of diamonds to start first (traditional Sevens start)
     let startingPlayerIndex = 0;
     for (let i = 0; i < this.state.players.length; i++) {
-      const has7OfDiamonds = this.state.players[i].hand.some(card => 
-        card.rank === '7' && card.suit === 'clubs'
+      const player = this.state.players[i];
+      const hasSevenOfDiamonds = player.hand.some(card => 
+        card.rank === '7' && card.suit === 'diamonds'
       );
-      if (has7OfDiamonds) {
+      if (hasSevenOfDiamonds) {
         startingPlayerIndex = i;
         break;
       }
     }
     
-    // Set the player with 7 of diamonds as the current player
+    // If no 7 of diamonds found (shouldn't happen), find any 7
+    if (startingPlayerIndex === 0) {
+      for (let i = 0; i < this.state.players.length; i++) {
+        const player = this.state.players[i];
+        const hasSeven = player.hand.some(card => card.rank === '7');
+        if (hasSeven) {
+          startingPlayerIndex = i;
+          break;
+        }
+      }
+    }
+    
+    // Set the player with starting 7 as the current player
     this.state.players.forEach(p => p.isActive = false);
     this.state.players[startingPlayerIndex].isActive = true;
     this.state.currentPlayerIndex = startingPlayerIndex;
+    
+    // Store metadata for enhanced table display
+    (this.state as any).gameMetadata = {
+      centeringStrategy: 'start_with_seven',
+      primarySuit: 'diamonds',
+      tableLayout: 'sequence'
+    };
   }
   
   // Public method to check if a specific card can be played

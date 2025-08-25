@@ -46,6 +46,11 @@ const sevensRules: GameRules = {
     'Scoring: Each losing player gets 1 point per card left in hand.',
     'Lowest score after a set number of rounds wins the session.'
   ],
+  tableLayout: {
+    preferred: 'sequence',
+    allowFlexiblePlacement: true,
+    centerCard: '7'
+  },
 };
 
 export const sevensGame: PredefinedGame = {

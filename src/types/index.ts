@@ -43,6 +43,15 @@ export interface GameRules {
   actions: GameAction[];
   winConditions: WinCondition[];
   specialRules?: string[];
+  /**
+   * Optional table layout preference for the UI.
+   * If not specified, the engine will determine the optimal layout.
+   */
+  tableLayout?: {
+    preferred?: 'grid' | 'centered' | 'sequence';
+    allowFlexiblePlacement?: boolean;
+    centerCard?: string; // e.g., "7" for games that center around sevens
+  };
   aiPrompt?: string; // For GPT-generated rules
 }
 

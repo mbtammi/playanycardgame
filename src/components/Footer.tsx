@@ -36,6 +36,11 @@ const Footer = () => {
               <span className="footer-emoji">💻</span> GitHub
             </a>
           </li>
+          <li>
+            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="footer-link">
+              <span className="footer-emoji">📝</span> Report a Bug/Feature
+            </a>
+          </li>
         </ul>
       </div>
 

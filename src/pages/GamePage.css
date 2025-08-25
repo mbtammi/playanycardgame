@@ -16,6 +16,36 @@
   margin: 0 auto;
 }
 
+/* Game Area Container (replaces game-table-outer) */
+.game-area-container {
+  width: 100%;
+  max-width: 80rem;
+  margin: 2rem auto;
+  padding: 1rem;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+/* Game Table Outer - Universal container for all games */
+.game-table-outer {
+  width: 100%;
+  max-width: 80rem;
+  margin: 2rem auto;
+  padding: 1rem;
+  background: linear-gradient(to bottom right, #f0fdf4, #dcfce7);
+  border-radius: 1.5rem;
+  border: 2px solid #bbf7d0;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  min-height: 400px;
+}
+
 /* No Game Selected State */
 .no-game-container {
   min-height: 100vh;
