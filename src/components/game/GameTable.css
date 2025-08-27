@@ -33,6 +33,238 @@
   font-weight: 500;
 }
 
+/* Enhanced flexible table layouts */
+.rules-based-table {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.freeform-table {
+  position: relative;
+  width: 100%;
+  min-height: 500px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  border: 2px dashed #34d399;
+}
+
+.structured-table {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.structured-table.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.structured-table.sequence {
+  flex-direction: row;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.structured-table.scattered {
+  position: relative;
+  min-height: 400px;
+}
+
+/* Table zones */
+.table-zone {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  border: 2px solid rgba(52, 211, 153, 0.3);
+  transition: all 0.3s ease;
+  min-width: 150px;
+  min-height: 120px;
+}
+
+.table-zone:hover {
+  border-color: #34d399;
+  box-shadow: 0 8px 25px rgba(52, 211, 153, 0.2);
+}
+
+.zone-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #059669;
+  margin-bottom: 0.5rem;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.zone-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  min-height: 80px;
+  position: relative;
+}
+
+.zone-deck .zone-cards,
+.zone-pile .zone-cards {
+  flex-direction: column;
+}
+
+.zone-sequence .zone-cards {
+  flex-direction: row;
+  overflow-x: auto;
+}
+
+.zone-grid .zone-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.empty-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 80px;
+  border: 2px dashed #34d399;
+  border-radius: 0.5rem;
+  color: #059669;
+  font-size: 0.875rem;
+}
+
+.deck-placeholder,
+.discard-placeholder {
+  padding: 1rem;
+  background: rgba(52, 211, 153, 0.1);
+  border-radius: 0.5rem;
+  font-weight: 500;
+}
+
+.drop-zone-button {
+  padding: 0.5rem 1rem;
+  background: #34d399;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.drop-zone-button:hover {
+  background: #10b981;
+  transform: translateY(-1px);
+}
+
+/* Flexible table layout */
+.flexible-table {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.flexible-message {
+  font-size: 1.1rem;
+  color: #047857;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Simple layout styles */
+.simple-layout {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.layout-message {
+  font-size: 1rem;
+  color: #059669;
+  font-weight: 500;
+  text-align: center;
+  padding: 1rem;
+  background: rgba(220, 252, 231, 0.5);
+  border-radius: 0.5rem;
+  border: 1px solid #bbf7d0;
+}
+
+/* Memory game grid styling */
+.memory-grid {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  border: 2px solid #34d399;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.memory-grid .card {
+  transition: transform 0.2s ease;
+}
+
+.memory-grid .card:hover {
+  transform: scale(1.05);
+}
+
+/* Memory Palace specific layout */
+.memory-palace-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.memory-grid-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sequence-area-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.zone-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #065f46;
+  margin: 0;
+}
+
+.empty-sequence-area {
+  padding: 2rem;
+  background: rgba(34, 197, 94, 0.1);
+  border: 2px dashed #22c55e;
+  border-radius: 1rem;
+  text-align: center;
+  color: #065f46;
+  font-style: italic;
+  min-width: 300px;
+}
+
+@media (min-width: 768px) {
+  .memory-palace-layout {
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: flex-start;
+  }
+}
+
 /* Table grid layouts */
 .table-grid {
   display: grid;

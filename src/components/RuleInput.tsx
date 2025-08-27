@@ -2,19 +2,17 @@ import React, { useState } from 'react';
 import { useAppStore } from '../store';
 import './RuleInput.css';
 
-const defaultText = `I will lift cards from the deck, if the card is black I will win.`;
+const defaultText = `Create a strategic card game called "Memory Palace" for 2-4 players. Each player starts with 5 cards. Place 16 cards face-down in a 4x4 grid on the table. Players take turns flipping 2 cards to find matches. If they match, the player keeps the pair and scores 2 points. If not, the cards flip back face-down. Players can also play cards from their hand to create sequences (consecutive ranks) in the center area for 3 points per sequence. The game ends when all grid cards are claimed. Highest score wins! Add strategic elements like peek cards that let you see any face-down card for 1 turn.`;
 
 
 const RuleInput: React.FC = () => {
   const [freeText, setFreeText] = useState(defaultText);
-  const [schema, setSchema] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const { setCurrentPage, setGameSchema } = useAppStore();
 
-  // Call backend API to interpret rules using OpenAI
-  const interpretRules = async () => {
+  // Call backend API to interpret rules and start game directly
+  const handleStartGame = async () => {
     setLoading(true);
-    setSchema('');
     try {
       const response = await fetch('/api/openai', {
         method: 'POST',
@@ -29,10 +27,21 @@ const RuleInput: React.FC = () => {
       const content = data.choices?.[0]?.message?.content || '';
       const match = content.match(/```json\s*([\s\S]*?)```/);
       const json = match ? match[1] : content;
-      setSchema(json);
+      
+      // Parse and validate the schema
+      const parsed = JSON.parse(json);
+      console.log('Generated schema from AI:', parsed);
+      const filled = fillGameRulesDefaults(parsed);
+      console.log('Schema after filling defaults:', filled);
+      if (!isValidGameRules(filled)) {
+        throw new Error('The AI generated an invalid game schema. Please try rephrasing your rules.');
+      }
+      
+      // Start the game directly
+      setGameSchema(filled);
+      setCurrentPage('game');
     } catch (err: any) {
-      setSchema('');
-      alert('Error: ' + (err.message || 'Failed to interpret rules.'));
+      alert('Error creating your game: ' + (err.message || 'Please try rephrasing your rules and try again.'));
     } finally {
       setLoading(false);
     }
@@ -58,15 +67,24 @@ const RuleInput: React.FC = () => {
       name: obj.name || 'Custom Game',
       description: obj.description || 'A user-defined card game.',
       players: obj.players && typeof obj.players === 'object' ? {
-        min: typeof obj.players.min === 'number' ? obj.players.min : 2,
+        min: typeof obj.players.min === 'number' ? obj.players.min : 1,
         max: typeof obj.players.max === 'number' ? obj.players.max : 6,
-        recommended: typeof obj.players.recommended === 'number' ? obj.players.recommended : 4,
-      } : { min: 2, max: 6, recommended: 4 },
+        recommended: typeof obj.players.recommended === 'number' ? obj.players.recommended : 1,
+      } : { min: 1, max: 6, recommended: 1 },
       setup: obj.setup && typeof obj.setup === 'object' ? {
-        cardsPerPlayer: typeof obj.setup.cardsPerPlayer === 'number' ? obj.setup.cardsPerPlayer : 7,
+        cardsPerPlayer: typeof obj.setup.cardsPerPlayer === 'number' ? obj.setup.cardsPerPlayer : 0,
         deckSize: typeof obj.setup.deckSize === 'number' ? obj.setup.deckSize : 52,
         specialCards: Array.isArray(obj.setup.specialCards) ? obj.setup.specialCards : [],
-      } : { cardsPerPlayer: 7, deckSize: 52, specialCards: [] },
+        keepDrawnCard: obj.setup.keepDrawnCard !== undefined ? obj.setup.keepDrawnCard : false,
+        multipleDecks: obj.setup.multipleDecks !== undefined ? obj.setup.multipleDecks : false,
+        numberOfDecks: typeof obj.setup.numberOfDecks === 'number' ? obj.setup.numberOfDecks : 1,
+        tableLayout: obj.setup.tableLayout && typeof obj.setup.tableLayout === 'object' ? {
+          type: obj.setup.tableLayout.type || 'centered',
+          allowFlexiblePlacement: obj.setup.tableLayout.allowFlexiblePlacement !== undefined ? obj.setup.tableLayout.allowFlexiblePlacement : false,
+          zones: Array.isArray(obj.setup.tableLayout.zones) ? obj.setup.tableLayout.zones : [],
+          freeformPlacement: obj.setup.tableLayout.freeformPlacement !== undefined ? obj.setup.tableLayout.freeformPlacement : false,
+        } : undefined,
+      } : { cardsPerPlayer: 0, deckSize: 52, specialCards: [], keepDrawnCard: false },
       objective: obj.objective && typeof obj.objective === 'object' ? {
         type: obj.objective.type || 'custom',
         description: obj.objective.description || '',
@@ -77,62 +95,35 @@ const RuleInput: React.FC = () => {
         phases: Array.isArray(obj.turnStructure.phases) ? obj.turnStructure.phases : [],
         timeLimit: obj.turnStructure.timeLimit,
       } : { order: 'clockwise', phases: [] },
-      actions: Array.isArray(obj.actions) ? obj.actions : [],
+      actions: Array.isArray(obj.actions) ? obj.actions : ['draw'],
       winConditions: Array.isArray(obj.winConditions) ? obj.winConditions : [],
       specialRules: Array.isArray(obj.specialRules) ? obj.specialRules : [],
       aiPrompt: typeof obj.aiPrompt === 'string' ? obj.aiPrompt : undefined,
     };
   }
 
-  const handleStartGame = () => {
-    if (schema) {
-      try {
-        // Log the schema for debugging
-        console.log('Schema to parse:', schema);
-        // Parse schema as GameRules and create a new game
-        const parsed = JSON.parse(schema);
-        const filled = fillGameRulesDefaults(parsed);
-        if (!isValidGameRules(filled)) {
-          alert('The generated schema is missing required fields or is not in the correct format. Please edit or try again.');
-          return;
-        }
-        setGameSchema(filled);
-        setCurrentPage('game');
-      } catch (e: any) {
-        alert('Invalid schema: ' + (e.message || e));
-      }
-    }
-  };
-
   return (
     <div className="rule-input-container">
-      <h2 className="rule-input-title">Define Your Game Rules</h2>
+      <h2 className="rule-input-title">Create Your Card Game</h2>
+      <p className="rule-input-description">
+        Describe your card game idea and our AI will create a complete, balanced, and engaging game for you! 
+        Think strategic depth, player interaction, and fun mechanics. The AI will fill in details to make it amazing.
+      </p>
       <textarea
         className="rule-input-textarea"
         value={freeText}
         onChange={e => setFreeText(e.target.value)}
-        placeholder="Describe your card game rules in plain English..."
+        placeholder="Describe your card game in detail... Be creative! Include how many players, what cards go where on the table, how to win, and any special rules. The AI will make it fun and balanced!"
       />
       <div className="rule-input-buttons">
         <button
-          className="btn-primary rule-input-interpret-button"
-          onClick={interpretRules}
+          className="btn-primary rule-input-start-button"
+          onClick={handleStartGame}
           disabled={loading}
         >
-          {loading ? 'Interpreting...' : 'Interpret Rules'}
-        </button>
-        <button
-          className="btn-secondary rule-input-start-button"
-          onClick={handleStartGame}
-          disabled={!schema}
-        >
-          Start Game
+          {loading ? 'Creating Your Game...' : 'Start Game'}
         </button>
       </div>
-      <h3 className="rule-input-schema-title">Generated Game Schema</h3>
-      <pre className="rule-input-schema">
-        {schema || 'Schema will appear here.'}
-      </pre>
     </div>
   );
 };

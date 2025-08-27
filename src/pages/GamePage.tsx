@@ -486,6 +486,34 @@ const GamePage = () => {
                 layout={engineRef.current?.getOptimalTableLayout?.() || 'centered'}
                 flexiblePlacement={engineRef.current?.getTableDisplayData?.()?.metadata?.flexiblePlacement || false}
                 playerCount={currentGame.players.length}
+                onTableCardClick={(cardId: string, zoneId: string) => {
+                  // Handle table card clicks (like flipping cards in memory games)
+                  if (engineRef.current && isUserTurn()) {
+                    try {
+                      console.log(`Clicking table card ${cardId} in zone ${zoneId}`);
+                      
+                      // For memory games, try the flip action
+                      const validActions = engineRef.current.getValidActionsForCurrentPlayer();
+                      if (validActions.includes('flip')) {
+                        const result = engineRef.current.executeAction(
+                          getCurrentPlayer()?.id || '',
+                          'flip',
+                          [cardId]
+                        );
+                        if (result.success) {
+                          updateGameState(engineRef.current.getGameState());
+                          setMessage(result.message);
+                        } else {
+                          setMessage(result.message);
+                        }
+                      } else {
+                        setMessage('Cannot flip cards right now.');
+                      }
+                    } catch (error) {
+                      setMessage('Invalid action. Please try again.');
+                    }
+                  }
+                }}
                 onCardDrop={(cardId: string, targetSuit: string, position?: 'before' | 'after') => {
                   // Enhanced card drop handling for flexible placement
                   if (engineRef.current && isUserTurn()) {
@@ -562,41 +590,6 @@ const GamePage = () => {
                 <div className="flex flex-wrap gap-4 justify-center mb-6">
               {engineRef.current && isUserTurn() && currentGame.gameStatus === 'active' && (
                 <>
-                  {/* Show intelligent hints for sequence games */}
-                  {currentGame.rules.id === 'sevens' && (
-                    <div className="w-full text-center mb-2">
-                      {(() => {
-                        const table = (currentGame as any).table || {};
-                        const totalCardsOnTable = Object.values(table).reduce((sum: number, suitCards: any) => sum + suitCards.length, 0);
-                        
-                        if (totalCardsOnTable === 0) {
-                          return (
-                            <span className="text-sm text-gray-600 bg-red-50 px-3 py-1 rounded-full">
-                              🎯 First move: Play the 7 of Clubs to start!
-                            </span>
-                          );
-                        } else {
-                          const currentPlayer = getCurrentPlayer();
-                          const hasValidMove = currentPlayer && engineRef.current?.hasValidSevensMove?.(currentPlayer.id);
-                          
-                          if (hasValidMove) {
-                            return (
-                              <span className="text-sm text-gray-600 bg-green-50 px-3 py-1 rounded-full">
-                                💡 You can play a 7 or build up/down from existing cards
-                              </span>
-                            );
-                          } else {
-                            return (
-                              <span className="text-sm text-gray-600 bg-yellow-50 px-3 py-1 rounded-full">
-                                ⚠️ No valid moves - you must pass
-                              </span>
-                            );
-                          }
-                        }
-                      })()}
-                    </div>
-                  )}
-                  
                   {engineRef.current.getValidActionsForCurrentPlayer().map(action => {
                     switch (action) {
                       case 'draw':

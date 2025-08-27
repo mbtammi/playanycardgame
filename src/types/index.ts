@@ -37,6 +37,40 @@ export interface GameRules {
      * If false, drawn cards go to the discard pile (for draw-and-reveal games).
      */
     keepDrawnCard?: boolean;
+    /**
+     * If true, game uses multiple decks for enhanced gameplay
+     */
+    multipleDecks?: boolean;
+    /**
+     * Number of decks to use (defaults to 1)
+     */
+    numberOfDecks?: number;
+    /**
+     * Advanced table layout configuration for unlimited flexibility
+     */
+    tableLayout?: {
+      type: 'grid' | 'centered' | 'sequence' | 'scattered' | 'custom';
+      allowFlexiblePlacement: boolean;
+      zones?: Array<{
+        id: string;
+        type: 'pile' | 'sequence' | 'grid' | 'deck' | 'discard' | 'foundation' | 'tableau';
+        initialCards?: number;
+        faceDown?: boolean;
+        position?: { x: number; y: number };
+        maxCards?: number;
+        acceptedSuits?: string[];
+        acceptedRanks?: string[];
+        buildDirection?: 'up' | 'down' | 'both';
+      }>;
+      /**
+       * Allow cards to be placed anywhere on the table
+       */
+      freeformPlacement?: boolean;
+      /**
+       * Maximum number of separate card areas on table
+       */
+      maxTableAreas?: number;
+    };
   };
   objective: GameObjective;
   turnStructure: TurnStructure;
@@ -94,6 +128,22 @@ export interface GameState {
    * Can be suit -> Card[] or any other structure as needed by the game.
    */
   table?: Record<string, Card[]> | any;
+  /**
+   * Advanced table zones for complex layouts (memory games, solitaire, etc.)
+   */
+  tableZones?: Array<{
+    id: string;
+    type: 'pile' | 'sequence' | 'grid' | 'deck' | 'discard';
+    cards: Card[];
+    position?: { x: number; y: number };
+    faceDown?: boolean;
+    allowDrop?: boolean;
+    label?: string;
+  }>;
+  /**
+   * Flipped cards for memory games
+   */
+  flippedCards?: Card[];
   currentPlayerIndex: number;
   currentPhase: string;
   turn: number;

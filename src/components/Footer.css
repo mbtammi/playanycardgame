@@ -63,6 +63,23 @@
     color: #1e293b;
 }
 
+.footer-button {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.footer-button:hover {
+    color: #1e293b;
+}
+
 .footer-about-text {
     font-size: 0.9rem;
     color: #475569;

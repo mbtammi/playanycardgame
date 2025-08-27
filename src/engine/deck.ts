@@ -138,6 +138,10 @@ export class CardDeck {
   getCards(): Card[] {
     return [...this.cards];
   }
+
+  setCards(cards: Card[]): void {
+    this.cards = [...cards];
+  }
 }
 
 export class CardUtils {

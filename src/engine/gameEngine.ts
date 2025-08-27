@@ -6,10 +6,20 @@ export class GameEngine {
 
   private state: GameState;
   private deck: CardDeck;
+  private additionalDecks: CardDeck[]; // Support for multiple decks
   private blackjackMode: boolean = false;
 
   constructor(rules: GameRules) {
+    // Initialize primary deck
     this.deck = new CardDeck();
+    this.additionalDecks = [];
+    
+    // Initialize additional decks if needed
+    const numberOfDecks = rules.setup.numberOfDecks || (rules.setup.multipleDecks ? 2 : 1);
+    for (let i = 1; i < numberOfDecks; i++) {
+      this.additionalDecks.push(new CardDeck());
+    }
+    
     this.state = this.initializeGameState(rules);
     this.blackjackMode = rules.id === 'blackjack' || rules.name.toLowerCase().includes('blackjack');
   }
@@ -70,17 +80,36 @@ If a player description mentions "I will get X cards and others get Y", use card
       deck: [],
       discardPile: [],
       communityCards: [],
-      table: {}, // Flexible table: suit -> array of cards, or any structure needed
+      table: {}, // Flexible table: supports any structure the AI wants
       currentPlayerIndex: 0,
       currentPhase: 'setup',
       turn: 1,
       round: 1,
       scores: {},
       gameStatus: 'waiting',
+      // Enhanced table state for unlimited flexibility
+      tableZones: rules.setup.tableLayout?.zones?.map(zone => ({
+        ...zone,
+        cards: []
+      })) || [],
+      // Multiple deck support
+      additionalDecks: [],
       // Blackjack-specific state
       handValues: {}, // playerId -> hand value
       busted: {}, // playerId -> boolean
-    } as GameState & { handValues?: Record<string, number>, busted?: Record<string, boolean>, table?: any };
+    } as GameState & { 
+      handValues?: Record<string, number>, 
+      busted?: Record<string, boolean>, 
+      table?: any,
+      tableZones?: Array<{
+        id: string;
+        type: string;
+        cards: Card[];
+        faceDown?: boolean;
+        position?: { x: number; y: number };
+      }>,
+      additionalDecks?: Card[][]
+    };
   }
 
   addPlayer(name: string, type: 'human' | 'bot', avatar?: string): void {
@@ -112,8 +141,23 @@ If a player description mentions "I will get X cards and others get Y", use card
       throw new Error(`Need at least ${this.state.rules.players.min} players to start`);
     }
 
-    // Shuffle deck
-    this.deck.shuffle();
+    // Combine all decks if using multiple decks
+    const allDecks = [this.deck, ...this.additionalDecks];
+    allDecks.forEach(deck => deck.shuffle());
+    
+    // If using multiple decks, combine them into the main deck
+    if (this.additionalDecks.length > 0) {
+      const combinedCards = allDecks.flatMap(deck => deck.getCards());
+      this.deck = new (this.deck.constructor as any)();
+      combinedCards.forEach(card => {
+        // Update card IDs to ensure uniqueness across decks
+        card.id = `${card.id}-deck${allDecks.findIndex(deck => deck.getCards().includes(card))}`;
+      });
+      this.deck.setCards(combinedCards);
+      this.deck.shuffle();
+    } else {
+      this.deck.shuffle();
+    }
 
     // Deal initial hands with support for asymmetric dealing
     let hands: Card[][];
@@ -128,15 +172,19 @@ If a player description mentions "I will get X cards and others get Y", use card
         const playerHand = this.deck.deal(cardsForThisPlayer);
         hands.push(playerHand);
       }
-    } else if (this.state.rules.setup.cardsPerPlayer === 0) {
-      // Deal all cards evenly among players
-      hands = this.deck.dealAllEvenly(this.state.players.length);
     } else {
       // Deal specific number of cards per player (symmetric)
-      hands = this.deck.dealHand(
-        this.state.players.length,
-        this.state.rules.setup.cardsPerPlayer
-      );
+      const cardsToDealer = this.state.rules.setup.cardsPerPlayer || 0;
+      if (cardsToDealer === 0) {
+        // Players start with empty hands - don't deal any cards
+        hands = this.state.players.map(() => []);
+      } else {
+        // Deal specific number of cards per player
+        hands = this.deck.dealHand(
+          this.state.players.length,
+          cardsToDealer
+        );
+      }
     }
 
     // Assign hands to players
@@ -144,14 +192,51 @@ If a player description mentions "I will get X cards and others get Y", use card
       player.hand = hands[index] || [];
       if (this.blackjackMode) {
         (this.state as any).handValues[player.id] = CardUtils.calculateHandValue(player.hand, 'blackjack');
-        (this.state as any).busted[player.id] = false;
       }
     });
 
-    // Game-specific initialization
-    if (this.state.rules.id === 'sevens') {
-      this.initializeSevensGame();
+    // Initialize table zones with specified initial cards
+    if (this.state.rules.setup.tableLayout?.zones) {
+      const tableZones = (this.state as any).tableZones || [];
+      
+      // Ensure tableZones array is properly initialized
+      this.state.rules.setup.tableLayout.zones.forEach((zoneConfig, index) => {
+        // Initialize zone if it doesn't exist
+        if (!tableZones[index]) {
+          tableZones[index] = {
+            id: zoneConfig.id,
+            type: zoneConfig.type,
+            cards: [],
+            faceDown: zoneConfig.faceDown,
+            position: zoneConfig.position,
+          };
+        }
+        
+        // Deal initial cards to this zone
+        if (zoneConfig.initialCards && zoneConfig.initialCards > 0) {
+          const zoneCards = this.deck.deal(zoneConfig.initialCards);
+          tableZones[index].cards = zoneCards;
+          
+          // Set face down if specified (default true for face-down zones)
+          const shouldBeFaceDown = zoneConfig.faceDown !== undefined ? zoneConfig.faceDown : true;
+          if (shouldBeFaceDown) {
+            zoneCards.forEach(card => card.faceUp = false);
+          } else {
+            zoneCards.forEach(card => card.faceUp = true);
+          }
+          
+          console.log(`✅ Initialized zone "${zoneConfig.id}" with ${zoneCards.length} cards, faceDown: ${shouldBeFaceDown}`);
+        }
+      });
+      
+      // Store the tableZones in state
+      (this.state as any).tableZones = tableZones;
+      console.log(`🎮 Total zones initialized: ${tableZones.length}`);
+      console.log('🔍 Zones data:', tableZones.map((z: any) => ({ id: z.id, cardCount: z.cards?.length || 0, faceDown: z.faceDown })));
     }
+
+    // Game-specific initialization can be handled by AI rules
+    // No hardcoded game initialization needed
 
     // Set first player as active
     this.state.players[0].isActive = true;
@@ -159,8 +244,11 @@ If a player description mentions "I will get X cards and others get Y", use card
     this.state.gameStatus = 'active';
     this.state.currentPhase = 'playing';
 
-    // Store remaining deck
+    // Store remaining deck and additional decks
     this.state.deck = this.deck.getCards();
+    if (this.additionalDecks.length > 0) {
+      (this.state as any).additionalDecks = this.additionalDecks.map(deck => deck.getCards());
+    }
   }
 
   getCurrentPlayer(): Player | null {
@@ -169,11 +257,22 @@ If a player description mentions "I will get X cards and others get Y", use card
 
   getGameState(): GameState {
     // Always return up-to-date deck and discardPile arrays
-    return {
+    const state = {
       ...this.state,
       deck: [...this.state.deck],
       discardPile: [...this.state.discardPile],
     };
+    
+    // Debug table zones for development
+    const tableZones = (this.state as any).tableZones;
+    if (tableZones && tableZones.length > 0) {
+      console.log(`🎮 GameState tableZones: ${tableZones.length} zones`);
+      tableZones.forEach((zone: any, index: number) => {
+        console.log(`  Zone ${index}: ${zone.id} (${zone.type}) - ${zone.cards?.length || 0} cards`);
+      });
+    }
+    
+    return state;
   }
 
   isValidAction(playerId: string, action: GameAction, cards?: string[]): boolean {
@@ -199,11 +298,7 @@ If a player description mentions "I will get X cards and others get Y", use card
       const hasCards = cards.every(cardId => player.hand.some(card => card.id === cardId));
       if (!hasCards) return false;
       
-      // Game-specific validation
-      if (this.state.rules.id === 'sevens') {
-        return cards.length === 1 && this.isValidSevensPlay(cards[0]);
-      }
-      
+      // General play validation - let AI rules handle game-specific logic
       return true;
     }
     if (action === 'playToTable') {
@@ -213,6 +308,22 @@ If a player description mentions "I will get X cards and others get Y", use card
     if (action === 'discard') {
       if (!cards || cards.length !== 1) return false;
       return player.hand.some(card => card.id === cards[0]);
+    }
+    if (action === 'flip') {
+      if (!cards || cards.length !== 1) return false;
+      // Check if card exists in table zones
+      return this.state.tableZones?.some(zone => 
+        zone.cards.some(card => card.id === cards[0])
+      ) || false;
+    }
+    if (action === 'peek') {
+      if (!cards || cards.length !== 1) return false;
+      // Check if card exists in table zones and player has enough points
+      const cardExists = this.state.tableZones?.some(zone => 
+        zone.cards.some(card => card.id === cards[0])
+      ) || false;
+      const hasPoints = (this.state.scores[player.id] || 0) > 0;
+      return cardExists && hasPoints;
     }
     // For custom actions, always allow (unless you want to add custom validation)
     return true;
@@ -234,15 +345,17 @@ If a player description mentions "I will get X cards and others get Y", use card
     const player = this.state.players.find(p => p.id === playerId)!;
     let message = '';
     try {
-      // === GAME-SPECIFIC HANDLING ===
-      if (this.state.rules.id === 'sevens' && action === 'play' && cardIds && cardIds.length === 1) {
-        // Special handling for Sevens gameplay
-        if (!this.isValidSevensPlay(cardIds[0])) {
-          throw new Error('Invalid Sevens move. You can only play a 7 or a card adjacent to existing cards in the same suit.');
-        }
-        message = this.executeSevensPlay(player, cardIds[0]);
-      }
-      // === GENERIC HANDLING ===
+      // === SPECIAL ACTION HANDLING ===
+      if (action === 'flip' && cardIds && cardIds.length === 1) {
+        // Handle flip action for memory games
+        const result = this.handleFlipAction(player, cardIds[0]);
+        message = result.message;
+      } else if (action === 'peek' && cardIds && cardIds.length === 1) {
+        // Handle peek action for memory games
+        const result = this.handlePeekAction(player, cardIds[0]);
+        message = result.message;
+      } 
+      // === UNIVERSAL HANDLING ===
       else if (cardIds && cardIds.length > 0) {
         // Remove cards from hand and add to community pile
         const cardsToPlay = cardIds.map(id => {
@@ -331,8 +444,11 @@ If a player description mentions "I will get X cards and others get Y", use card
     } else {
       this.state.discardPile.push(drawnCard);
     }
-    // Optionally, store last revealed card for UI
+    // Store last revealed card for UI and win checking
     (this.state as any).lastDrawnCard = drawnCard;
+    
+    // IMPORTANT: Check win condition immediately after draw for draw-based games
+    this.checkWinCondition();
   }
 
   // private handlePlayAction(player: Player, cardIds: string[]): void {
@@ -356,6 +472,108 @@ If a player description mentions "I will get X cards and others get Y", use card
 
     const discardedCard = player.hand.splice(cardIndex, 1)[0];
     this.state.discardPile.push(discardedCard);
+  }
+
+  /**
+   * Handle flipping a card in a table zone (like memory games)
+   */
+  private handleFlipAction(player: Player, cardId: string): { message: string } {
+    // Find the card in table zones
+    const zone = this.state.tableZones?.find(zone => 
+      zone.cards.some(card => card.id === cardId)
+    );
+    
+    if (!zone) {
+      throw new Error(`Card ${cardId} not found in any table zone`);
+    }
+    
+    const card = zone.cards.find(c => c.id === cardId);
+    if (!card) {
+      throw new Error(`Card ${cardId} not found`);
+    }
+    
+    // Flip the card (toggle faceUp)
+    card.faceUp = !card.faceUp;
+    
+    // Store flipped card for memory game logic
+    if (!this.state.flippedCards) {
+      (this.state as any).flippedCards = [];
+    }
+    
+    if (card.faceUp) {
+      (this.state as any).flippedCards.push(card);
+      
+      // Check for matching pairs in memory games
+      if ((this.state as any).flippedCards.length === 2) {
+        const [first, second] = (this.state as any).flippedCards;
+        if (first.rank === second.rank) {
+          // Match! Remove cards from grid and score points
+          this.updateScore(player.id, 2);
+          // Remove matched cards from their zones
+          this.removeCardsFromZones([first.id, second.id]);
+          (this.state as any).flippedCards = [];
+          return { message: `${player.name} found a matching pair! ${first.rank}s` };
+        } else {
+          // No match - cards will flip back after a delay
+          setTimeout(() => {
+            first.faceUp = false;
+            second.faceUp = false;
+            (this.state as any).flippedCards = [];
+          }, 2000);
+          return { message: `${player.name} flipped ${card.rank} ${card.suit}. No match, cards will flip back.` };
+        }
+      }
+      
+      return { message: `${player.name} flipped ${card.rank} ${card.suit}` };
+    } else {
+      // Card flipped back down
+      const flippedIndex = (this.state as any).flippedCards?.findIndex((c: any) => c.id === card.id);
+      if (flippedIndex !== -1) {
+        (this.state as any).flippedCards.splice(flippedIndex, 1);
+      }
+      return { message: `${player.name} flipped card face down` };
+    }
+  }
+
+  /**
+   * Handle peeking at a card (shows it temporarily)
+   */
+  private handlePeekAction(player: Player, cardId: string): { message: string } {
+    // Find the card in table zones
+    const zone = this.state.tableZones?.find(zone => 
+      zone.cards.some(card => card.id === cardId)
+    );
+    
+    if (!zone) {
+      throw new Error(`Card ${cardId} not found in any table zone`);
+    }
+    
+    const card = zone.cards.find(c => c.id === cardId);
+    if (!card) {
+      throw new Error(`Card ${cardId} not found`);
+    }
+    
+    // Temporarily show the card (costs 1 point)
+    this.updateScore(player.id, -1);
+    card.faceUp = true;
+    
+    // Set it to flip back after 3 seconds
+    setTimeout(() => {
+      card.faceUp = false;
+    }, 3000);
+    
+    return { message: `${player.name} peeked at ${card.rank} ${card.suit} (-1 point)` };
+  }
+
+  /**
+   * Remove cards from table zones (for matched pairs)
+   */
+  private removeCardsFromZones(cardIds: string[]): void {
+    if (!this.state.tableZones) return;
+    
+    for (const zone of this.state.tableZones) {
+      zone.cards = zone.cards.filter(card => !cardIds.includes(card.id));
+    }
   }
 
   private nextTurn(): void {
@@ -383,6 +601,7 @@ If a player description mentions "I will get X cards and others get Y", use card
   }
 
   private checkWinCondition(): void {
+    console.log('Checking win conditions...');
     const winConditions = this.state.rules.winConditions;
 
     for (const condition of winConditions) {
@@ -585,6 +804,24 @@ If a player description mentions "I will get X cards and others get Y", use card
     this.state.scores[playerId] = (this.state.scores[playerId] || 0) + points;
   }
 
+  // Helper method for card rank numeric values (needed for sorting/comparison)
+  private getCardNumericValue(rank: string): number {
+    switch (rank) {
+      case 'A': return 1;
+      case 'K': return 13;
+      case 'Q': return 12;
+      case 'J': return 11;
+      default: return parseInt(rank) || 0;
+    }
+  }
+
+  // General method to check if a specific card can be played (used by UI)
+  isValidPlay(cardId: string): boolean {
+    const player = this.getCurrentPlayer();
+    if (!player) return false;
+    return this.isValidAction(player.id, 'play', [cardId]);
+  }
+
   getPlayerHand(playerId: string): Card[] {
     const player = this.state.players.find(p => p.id === playerId);
     return player ? [...player.hand] : [];
@@ -681,21 +918,49 @@ If a player description mentions "I will get X cards and others get Y", use card
       validDropZones?: string[];
       playerCount: number;
       flexiblePlacement: boolean;
+      multipleDecks: boolean;
+      tableLayout?: any;
     };
   } {
     const rules = this.state.rules;
     const table = (this.state as any).table || {};
+    const tableZones = (this.state as any).tableZones || [];
     const layout = this.getOptimalTableLayout();
+    
+    // Check if rules specify table layout
+    const rulesLayout = rules.setup.tableLayout;
+    
+    // Use rules-based zones if available
+    let zones;
+    if (rulesLayout?.zones && rulesLayout.zones.length > 0) {
+      zones = rulesLayout.zones.map((zoneConfig: any) => {
+        const zoneState = tableZones.find((z: any) => z.id === zoneConfig.id);
+        return {
+          id: zoneConfig.id,
+          type: zoneConfig.type,
+          cards: zoneState?.cards || [],
+          position: zoneConfig.position,
+          allowDrop: zoneConfig.allowDrop !== false,
+          label: zoneConfig.id,
+          faceDown: zoneConfig.faceDown,
+          maxCards: zoneConfig.maxCards,
+          acceptedSuits: zoneConfig.acceptedSuits,
+          acceptedRanks: zoneConfig.acceptedRanks,
+          buildDirection: zoneConfig.buildDirection,
+        };
+      });
+    } else {
+      zones = this.generateTableZones(table, rules, this.detectTableType(table, rules));
+    }
     
     // Determine if game needs a table at all
     const needsTable = this.analyzeTableNeed();
-    const tableType = this.detectTableType(table, rules);
-    const zones = this.generateTableZones(table, rules, tableType);
+    const tableType = rulesLayout?.type ? this.mapLayoutTypeToTableType(rulesLayout.type) : this.detectTableType(table, rules);
     
     return {
       tableType,
       table: needsTable ? table : {},
-      layout: needsTable ? layout : 'centered',
+      layout: rulesLayout?.type || (needsTable ? layout : 'centered'),
       zones,
       metadata: {
         gameType: rules.id,
@@ -703,9 +968,25 @@ If a player description mentions "I will get X cards and others get Y", use card
         centerCard: this.getCenterCard(),
         validDropZones: this.getValidDropZones(),
         playerCount: this.state.players.length,
-        flexiblePlacement: this.supportsFlexiblePlacement(),
+        flexiblePlacement: rulesLayout?.allowFlexiblePlacement || this.supportsFlexiblePlacement(),
+        multipleDecks: rules.setup.multipleDecks || false,
+        tableLayout: rulesLayout,
       }
     };
+  }
+
+  /**
+   * Map layout type from rules to table type
+   */
+  private mapLayoutTypeToTableType(layoutType: string): 'none' | 'suit-based' | 'pile-based' | 'sequence' | 'scattered' | 'custom' {
+    switch (layoutType) {
+      case 'grid': return 'custom'; // Grid layouts should use zone-based rendering
+      case 'sequence': return 'sequence';
+      case 'scattered': return 'scattered';
+      case 'custom': return 'custom';
+      case 'centered': return 'pile-based';
+      default: return 'custom'; // Default to custom for zone-based games
+    }
   }
 
   /**
@@ -990,153 +1271,6 @@ If a player description mentions "I will get X cards and others get Y", use card
     return cardValue === minRank - 1 || cardValue === maxRank + 1;
   }
 
-  // ===== SEVENS GAME SPECIFIC METHODS =====
-  
-  private initializeSevensGame(): void {
-    // Initialize the table structure for Sevens with enhanced centering
-    // Table will store cards organized by suit: { hearts: [], diamonds: [], clubs: [], spades: [] }
-    (this.state as any).table = {
-      hearts: [],
-      diamonds: [],
-      clubs: [],
-      spades: []
-    };
-    
-    // Find who has the 7 of diamonds to start first (traditional Sevens start)
-    let startingPlayerIndex = 0;
-    for (let i = 0; i < this.state.players.length; i++) {
-      const player = this.state.players[i];
-      const hasSevenOfDiamonds = player.hand.some(card => 
-        card.rank === '7' && card.suit === 'diamonds'
-      );
-      if (hasSevenOfDiamonds) {
-        startingPlayerIndex = i;
-        break;
-      }
-    }
-    
-    // If no 7 of diamonds found (shouldn't happen), find any 7
-    if (startingPlayerIndex === 0) {
-      for (let i = 0; i < this.state.players.length; i++) {
-        const player = this.state.players[i];
-        const hasSeven = player.hand.some(card => card.rank === '7');
-        if (hasSeven) {
-          startingPlayerIndex = i;
-          break;
-        }
-      }
-    }
-    
-    // Set the player with starting 7 as the current player
-    this.state.players.forEach(p => p.isActive = false);
-    this.state.players[startingPlayerIndex].isActive = true;
-    this.state.currentPlayerIndex = startingPlayerIndex;
-    
-    // Store metadata for enhanced table display
-    (this.state as any).gameMetadata = {
-      centeringStrategy: 'start_with_seven',
-      primarySuit: 'diamonds',
-      tableLayout: 'sequence'
-    };
-  }
-  
-  // Public method to check if a specific card can be played
-  isValidPlay(cardId: string): boolean {
-    if (this.state.rules.id === 'sevens') {
-      return this.isValidSevensPlay(cardId);
-    }
-    // For other games, use general validation
-    const player = this.getCurrentPlayer();
-    if (!player) return false;
-    return this.isValidAction(player.id, 'play', [cardId]);
-  }
-
-  private isValidSevensPlay(cardId: string): boolean {
-    const card = this.state.players
-      .flatMap(p => p.hand)
-      .find(c => c.id === cardId);
-    
-    if (!card) return false;
-    
-    const table = (this.state as any).table || {};
-    
-    // Check if any cards have been played yet (is this the very first move?)
-    const totalCardsOnTable = Object.values(table).reduce((sum: number, suitCards: any) => sum + suitCards.length, 0);
-    
-    // FIRST MOVE: Must be 7 of diamonds
-    if (totalCardsOnTable === 0) {
-      return card.rank === '7' && card.suit === 'diamonds';
-    }
-    
-    // AFTER FIRST MOVE: Can play any 7 to start a new suit
-    if (card.rank === '7') {
-      return true;
-    }
-    
-    // BUILDING: Can only play cards adjacent to existing cards in the same suit
-    const suitCards = table[card.suit] || [];
-    
-    // If no 7 is played in this suit yet, can't play other cards
-    if (suitCards.length === 0) return false;
-    
-    // Check if card can be played adjacent to existing cards
-    const cardValue = this.getCardNumericValue(card.rank);
-    const suitValues = suitCards.map((c: Card) => this.getCardNumericValue(c.rank)).sort((a: number, b: number) => a - b);
-    
-    // Can play if it's one higher than the highest or one lower than the lowest
-    const minValue = Math.min(...suitValues);
-    const maxValue = Math.max(...suitValues);
-    
-    return cardValue === minValue - 1 || cardValue === maxValue + 1;
-  }
-  
-  private getCardNumericValue(rank: string): number {
-    switch (rank) {
-      case 'A': return 14; // Aces are high in Sevens
-      case 'K': return 13;
-      case 'Q': return 12;
-      case 'J': return 11;
-      default: return parseInt(rank);
-    }
-  }
-  
-  private executeSevensPlay(player: Player, cardId: string): string {
-    const cardIndex = player.hand.findIndex(card => card.id === cardId);
-    if (cardIndex === -1) {
-      throw new Error(`Player doesn't have card ${cardId}`);
-    }
-    
-    const card = player.hand.splice(cardIndex, 1)[0];
-    const table = (this.state as any).table || {};
-    
-    if (!table[card.suit]) {
-      table[card.suit] = [];
-    }
-    
-    table[card.suit].push(card);
-    
-    // Sort the suit cards by value to maintain order
-    table[card.suit].sort((a: Card, b: Card) => 
-      this.getCardNumericValue(a.rank) - this.getCardNumericValue(b.rank)
-    );
-    
-    return `${player.name} played ${card.rank}${this.getSuitSymbol(card.suit)}`;
-  }
-
-  // Helper method to check if a player has any valid Sevens moves
-  hasValidSevensMove(playerId: string): boolean {
-    const player = this.state.players.find(p => p.id === playerId);
-    if (!player) return false;
-    
-    // Check each card in hand
-    for (const card of player.hand) {
-      if (this.isValidSevensPlay(card.id)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   // Enhanced method to get valid actions that considers game rules
   getValidActionsForCurrentPlayer(): GameAction[] {
     const player = this.getCurrentPlayer();
@@ -1146,22 +1280,15 @@ If a player description mentions "I will get X cards and others get Y", use card
     const phaseObj = this.state.rules.turnStructure?.phases?.find(phase => phase.name === currentPhase);
     const allowedActions = phaseObj?.actions || this.state.rules.actions;
     
-    // For Sevens, be more intelligent about available actions
-    if (this.state.rules.id === 'sevens') {
-      const actions: GameAction[] = [];
-      
-      // Check if player can play any cards
-      if (this.hasValidSevensMove(player.id)) {
-        actions.push('play');
+    // General validation for all games
+    const validActions: GameAction[] = [];
+    
+    for (const action of allowedActions) {
+      if (this.isValidAction(player.id, action)) {
+        validActions.push(action);
       }
-      
-      // Player can always pass (but shouldn't if they have valid moves)
-      actions.push('pass');
-      
-      return actions as GameAction[];
     }
     
-    // For other games, use original logic
-    return (allowedActions as GameAction[]).filter(action => this.isValidAction(player.id, action));
+    return validActions;
   }
 }
