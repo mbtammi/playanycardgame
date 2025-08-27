@@ -1003,3 +1003,77 @@
   transform: translateY(-1px);
   box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.15);
 }
+
+/* Instant Win Overlay Styles */
+.instant-win-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.instant-win-modal {
+  padding: 3rem;
+  border-radius: 1.5rem;
+  border: 4px solid;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  text-align: center;
+  max-width: 28rem;
+  margin: 0 1rem;
+}
+
+.instant-win-modal.win {
+  background-color: #dcfce7;
+  border-color: #4ade80;
+  color: #166534;
+}
+
+.instant-win-modal.continue {
+  background-color: #fed7aa;
+  border-color: #fb923c;
+  color: #9a3412;
+}
+
+.instant-win-emoji {
+  font-size: 5rem;
+  margin-bottom: 1rem;
+}
+
+.instant-win-title {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.instant-win-message {
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.instant-win-card {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.instant-win-play-again {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #16a34a;
+  color: white;
+  border-radius: 9999px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.instant-win-play-again:hover {
+  background-color: #15803d;
+}

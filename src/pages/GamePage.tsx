@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getBotAction } from '../engine/bot';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useCurrentGame, useAppStore } from '../store';
 import { ArrowLeft, Users, Target, Shuffle } from 'lucide-react';
 import PlayerHand from '../components/game/PlayerHand';
@@ -18,6 +18,12 @@ const GamePage = () => {
   const [message, setMessage] = useState<React.ReactNode>(null);
   const [isEngineInitialized, setIsEngineInitialized] = useState(false);
   const [botThinking, setBotThinking] = useState(false);
+  const [instantWin, setInstantWin] = useState<{
+    show: boolean;
+    isWin: boolean;
+    card?: { rank: string; suit: string };
+    message: string;
+  }>({ show: false, isWin: false, message: '' });
   const engineRef = useRef<GameEngine | null>(null);
 
   // Only initialize engine when game ID or rules change (not every state update)
@@ -112,9 +118,57 @@ const GamePage = () => {
     const player = getCurrentPlayer();
     if (!player) return;
     const result = engineRef.current.executeAction(player.id, 'draw');
-    // Show the last drawn card if available
+    
+    // Get the updated state
     const nextState = engineRef.current.getGameState();
     const lastDrawn = (nextState as any).lastDrawnCard;
+    
+    // Check for instant win/lose in solo draw games
+    const isSoloDrawGame = currentGame.rules.actions.includes('draw') && 
+                          currentGame.players.length === 1 &&
+                          currentGame.rules.winConditions.some(w => w.type === 'custom');
+    
+    if (isSoloDrawGame && lastDrawn) {
+      const isBlack = lastDrawn.suit === 'clubs' || lastDrawn.suit === 'spades';
+      
+      // Check if this is a black card win condition
+      const isBlackCardWinGame = currentGame.rules.winConditions.some(w => 
+        w.type === 'custom' && 
+        w.description && w.description.toLowerCase().includes('black') && w.description.toLowerCase().includes('win')
+      );
+      
+      if (isBlackCardWinGame) {
+        if (isBlack) {
+          // Instant win!
+          setInstantWin({
+            show: true,
+            isWin: true,
+            card: lastDrawn,
+            message: `🎉 You drew a BLACK card (${lastDrawn.rank}${getSuitSymbol(lastDrawn.suit).symbol}) - YOU WIN!`
+          });
+          
+          // Hide the instant win after 3 seconds
+          setTimeout(() => {
+            setInstantWin(prev => ({ ...prev, show: false }));
+          }, 3000);
+        } else {
+          // Red card - continue game
+          setInstantWin({
+            show: true,
+            isWin: false,
+            card: lastDrawn,
+            message: `You drew a RED card (${lastDrawn.rank}${getSuitSymbol(lastDrawn.suit).symbol}) - Keep drawing!`
+          });
+          
+          // Hide the message after 2 seconds
+          setTimeout(() => {
+            setInstantWin(prev => ({ ...prev, show: false }));
+          }, 2000);
+        }
+      }
+    }
+    
+    // Show the last drawn card message as before
     let msg: React.ReactNode = result.message;
     if (lastDrawn) {
       const { symbol } = getSuitSymbol(lastDrawn.suit);
@@ -877,6 +931,91 @@ const GamePage = () => {
         {/* End of debug panel */}
         </div>
       </div>
+      
+      {/* Instant Win/Lose Overlay for Solo Games */}
+      <AnimatePresence>
+        {instantWin.show && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
+            className="instant-win-overlay"
+          >
+            <motion.div
+              initial={{ y: -50 }}
+              animate={{ y: 0 }}
+              className={`instant-win-modal ${instantWin.isWin ? 'win' : 'continue'}`}
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, duration: 0.3 }}
+                className="instant-win-emoji"
+              >
+                {instantWin.isWin ? '🎉' : '🔄'}
+              </motion.div>
+              
+              <motion.h2
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className="instant-win-title"
+              >
+                {instantWin.isWin ? 'YOU WIN!' : 'Keep Going!'}
+              </motion.h2>
+              
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                className="instant-win-message"
+              >
+                {instantWin.message}
+              </motion.div>
+              
+              {instantWin.card && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                  className="instant-win-card"
+                >
+                  <Card
+                    suit={instantWin.card.suit}
+                    rank={instantWin.card.rank}
+                    faceDown={false}
+                    selected={false}
+                  />
+                </motion.div>
+              )}
+              
+              {instantWin.isWin && (
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1 }}
+                  onClick={() => {
+                    // Reset game for another round
+                    if (engineRef.current) {
+                      engineRef.current = new GameEngine(currentGame.rules);
+                      currentGame.players.forEach(p => {
+                        engineRef.current?.addPlayer(p.name, p.type, p.avatar);
+                      });
+                      engineRef.current.startGame();
+                      updateGameState(engineRef.current.getGameState());
+                    }
+                    setInstantWin({ show: false, isWin: false, message: '' });
+                  }}
+                  className="instant-win-play-again"
+                >
+                  Play Again 🎲
+                </motion.button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
