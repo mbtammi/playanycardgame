@@ -37,8 +37,6 @@ const GameTable: React.FC<GameTableProps> = ({
   onPlayToTable, 
   selectableCard, 
   children, 
-  layout = 'centered', // eslint-disable-line @typescript-eslint/no-unused-vars
-  flexiblePlacement = false, // eslint-disable-line @typescript-eslint/no-unused-vars
   onCardDrop,
   onTableCardClick, // New prop for handling table card clicks
   gameRules,
