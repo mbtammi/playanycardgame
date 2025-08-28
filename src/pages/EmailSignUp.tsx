@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useAppStore } from '../store';
+// import { useAppStore } from '../store';
 import { addEmailToFirestore } from '../utils/firebase';
 import './EmailSignUp.css';
 
@@ -13,7 +13,7 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { setCurrentPage } = useAppStore();
+  // const { setCurrentPage } = useAppStore();
 
   // Show status message
   const showMessage = (text: string, type: 'success' | 'error') => {
