@@ -5,25 +5,65 @@ import { getFirestore } from 'firebase-admin/firestore';
 // Initialize Firebase Admin (only once)
 if (!getApps().length) {
   try {
+    // Check if required environment variables are present
+    const requiredEnvVars = {
+      FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+      FIREBASE_PRIVATE_KEY_ID: process.env.FIREBASE_PRIVATE_KEY_ID,
+      FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
+      FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+      FIREBASE_CLIENT_ID: process.env.FIREBASE_CLIENT_ID,
+    };
+
+    const missingVars = Object.entries(requiredEnvVars)
+      .filter(([key, value]) => !value)
+      .map(([key]) => key);
+
+    if (missingVars.length > 0) {
+      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    }
+
+    console.log('Initializing Firebase with environment variables...');
+    console.log('Project ID:', process.env.FIREBASE_PROJECT_ID);
+    console.log('Client Email:', process.env.FIREBASE_CLIENT_EMAIL);
+    console.log('Private Key ID:', process.env.FIREBASE_PRIVATE_KEY_ID);
+    console.log('Client ID:', process.env.FIREBASE_CLIENT_ID);
+
     initializeApp({
       credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         privateKeyId: process.env.FIREBASE_PRIVATE_KEY_ID,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         clientId: process.env.FIREBASE_CLIENT_ID,
         authUri: process.env.FIREBASE_AUTH_URI || "https://accounts.google.com/o/oauth2/auth",
         tokenUri: process.env.FIREBASE_TOKEN_URI || "https://oauth2.googleapis.com/token",
       }),
     });
+    console.log('Firebase initialized successfully');
   } catch (error) {
     console.error('Firebase Admin initialization error:', error);
+    throw error; // Re-throw so the function fails early if Firebase can't initialize
   }
 }
 
-const db = getFirestore();
+let db;
+try {
+  db = getFirestore();
+} catch (error) {
+  console.error('Failed to get Firestore instance:', error);
+  db = null;
+}
 
 export default async function handler(req, res) {
+  // Check if Firebase is properly initialized
+  if (!db) {
+    console.error('Firebase is not properly initialized');
+    return res.status(500).json({ 
+      error: 'Server configuration error',
+      message: 'Firebase is not properly initialized'
+    });
+  }
+
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
