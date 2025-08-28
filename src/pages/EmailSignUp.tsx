@@ -238,7 +238,7 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
                 fontSize: '0.8rem'
               }}
             >
-              <button
+              {/* <button
                 onClick={() => setCurrentPage('admin')}
                 style={{
                   background: 'none',
@@ -249,7 +249,7 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
                 }}
               >
                 admin
-              </button>
+              </button> */}
             </div>
           </motion.div>
         </motion.div>
