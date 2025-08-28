@@ -92,27 +92,42 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    // Check if email already exists
-    const emailsRef = db.collection('newsletter_emails');
-    const existingEmail = await emailsRef.where('email', '==', email).limit(1).get();
+    // Reference to the email_list document
+    const emailListRef = db.collection('newsletter_emails').doc('email_list');
     
-    if (!existingEmail.empty) {
-      return res.status(200).json({ 
-        message: 'Already subscribed!',
-        alreadyExists: true 
+    // Get the current email_list document
+    const doc = await emailListRef.get();
+    
+    if (!doc.exists) {
+      // Create the document if it doesn't exist
+      await emailListRef.set({
+        emails: [email],
+        created: new Date(),
+        lastUpdated: new Date(),
+        totalCount: 1,
+        type: 'email_array'
+      });
+    } else {
+      const data = doc.data();
+      const currentEmails = data.emails || [];
+      
+      // Check if email already exists
+      if (currentEmails.includes(email)) {
+        return res.status(200).json({ 
+          message: 'Already subscribed!',
+          alreadyExists: true 
+        });
+      }
+      
+      // Add the new email to the array
+      const updatedEmails = [...currentEmails, email];
+      
+      await emailListRef.update({
+        emails: updatedEmails,
+        lastUpdated: new Date(),
+        totalCount: updatedEmails.length
       });
     }
-
-    // Add new email to Firestore
-    const docData = {
-      email,
-      timestamp: new Date().toISOString(),
-      source: 'website',
-      ipAddress: req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown'
-    };
-
-    await emailsRef.add(docData);
     
     console.log(`✅ New newsletter signup: ${email}`);
     
