@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../store';
-import { getEmailStats } from '../utils/firebase';
+import { getEmailStats, adminLogin } from '../utils/firebase';
 import './AdminDashboard.css';
 
 interface EmailEntry {
@@ -33,22 +33,28 @@ const AdminDashboard: React.FC = () => {
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'admin123';
-    
-    if (password === adminPassword) {
-      setIsAuthenticated(true);
-      setAuthError('');
-      sessionStorage.setItem('admin_authenticated', 'true');
-      fetchStats();
-    } else {
-      setAuthError('Invalid password');
+    if (!password.trim()) {
+      setAuthError('Password is required');
+      return;
     }
-    setPassword('');
-  };
 
-  const handleLogout = () => {
+    setLoading(true);
+    setAuthError('');
+    
+    try {
+      await adminLogin(password);
+      setIsAuthenticated(true);
+      setPassword('');
+      fetchStats();
+    } catch (error) {
+      console.error('Authentication error:', error);
+      setAuthError(error instanceof Error ? error.message : 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };  const handleLogout = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem('admin_authenticated');
     setStats(null);

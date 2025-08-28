@@ -1,151 +1,94 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, updateDoc, arrayUnion, setDoc, collection, getDocs } from 'firebase/firestore';
+// Secure Firebase operations through backend API
+// NO client-side Firebase configuration - all operations go through our secure backend
 
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
-};
+interface EmailEntry {
+  id: string;
+  timestamp: string;
+  source: string;
+}
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+interface NewsletterStats {
+  totalSubscribers: number;
+  latestSignups: EmailEntry[];
+}
 
-// Use existing collection but with array document
-const COLLECTION_NAME = 'newsletter_emails';
-const ARRAY_DOC_ID = 'email_list';
+const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : '/api';
 
-// Email collection functions - works with existing collection
-export const addEmailToFirestore = async (email: string) => {
+// Email collection functions - all through secure backend
+export const addEmailToFirestore = async (email: string): Promise<boolean> => {
   try {
-    // Use the existing newsletter_emails collection but create an array document
-    const emailsRef = doc(db, COLLECTION_NAME, ARRAY_DOC_ID);
-    
-    // Check if array document exists
-    const docSnap = await getDoc(emailsRef);
-    
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      const existingEmails = data.emails || [];
-      
-      // Check if email already exists
-      if (existingEmails.includes(email)) {
-        console.log('Email already exists');
-        return true; 
-      }
-      
-      // Add new email to array
-      await updateDoc(emailsRef, {
-        emails: arrayUnion(email),
-        lastUpdated: new Date(),
-        totalCount: existingEmails.length + 1
-      });
-    } else {
-      // Create new array document in existing collection
-      console.log('Creating array document in existing collection...');
-      
-      // Get existing individual email documents
-      const oldEmails: string[] = [];
-      try {
-        const oldSnapshot = await getDocs(collection(db, COLLECTION_NAME));
-        oldSnapshot.forEach((doc) => {
-          // Skip our new array document
-          if (doc.id !== ARRAY_DOC_ID) {
-            const data = doc.data();
-            if (data.email && !oldEmails.includes(data.email)) {
-              oldEmails.push(data.email);
-            }
-          }
-        });
-      } catch (error) {
-        console.log('No existing emails found');
-      }
-      
-      // Add current email if not already included
-      if (!oldEmails.includes(email)) {
-        oldEmails.push(email);
-      }
-      
-      // Create array document in the same collection
-      await setDoc(emailsRef, {
-        emails: oldEmails,
-        created: new Date(),
-        lastUpdated: new Date(),
-        totalCount: oldEmails.length,
-        type: 'email_array'
-      });
+    const response = await fetch(`${API_BASE_URL}/api/newsletter`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to add email');
     }
-    
-    console.log('Email added successfully');
+
     return true;
   } catch (error) {
-    console.error('Error adding email: ', error);
-    return false;
+    console.error('Error adding email:', error);
+    throw error;
   }
 };
 
-export const getEmailStats = async () => {
+export const getEmailStats = async (): Promise<NewsletterStats> => {
   try {
-    // Try to get from array document first
-    const emailsRef = doc(db, COLLECTION_NAME, ARRAY_DOC_ID);
-    const docSnap = await getDoc(emailsRef);
-    
-    if (docSnap.exists()) {
-      // Use new array structure
-      const data = docSnap.data();
-      const emails = data.emails || [];
-      
-      return {
-        totalSubscribers: emails.length,
-        latestSignups: emails.slice(-10).reverse().map((email: string, index: number) => ({
-          id: `array_${index}`,
-          email, // include the email for admin/internal use
-          timestamp: data.lastUpdated?.toDate?.()?.toISOString() || new Date().toISOString(),
-          source: 'firebase_array'
-        }))
-      };
-    } else {
-      // Fallback to individual documents
-      console.log('Reading from individual documents...');
-      try {
-        const snapshot = await getDocs(collection(db, COLLECTION_NAME));
-        const emails: any[] = [];
-        
-        snapshot.forEach((doc) => {
-          // Skip our array document if it exists
-          if (doc.id !== ARRAY_DOC_ID) {
-            const data = doc.data();
-            emails.push({
-              id: doc.id,
-              email: data.email,
-              timestamp: data.timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
-              source: data.source || 'firebase_individual'
-            });
-          }
-        });
-        
-        return {
-          totalSubscribers: emails.length,
-          latestSignups: emails.slice(-10).reverse().map(email => ({
-            id: email.id,
-            timestamp: email.timestamp,
-            source: email.source
-          }))
-        };
-      } catch (error) {
-        console.log('No data found');
-        return {
-          totalSubscribers: 0,
-          latestSignups: []
-        };
-      }
+    const token = sessionStorage.getItem('admin_token');
+    if (!token) {
+      throw new Error('No authentication token');
     }
+
+    const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        sessionStorage.removeItem('admin_token');
+        sessionStorage.removeItem('admin_authenticated');
+        throw new Error('Authentication expired');
+      }
+      throw new Error('Failed to fetch stats');
+    }
+
+    return await response.json();
   } catch (error) {
-    console.error('Error getting email stats: ', error);
+    console.error('Error fetching email stats:', error);
+    throw error;
+  }
+};
+
+export const adminLogin = async (password: string): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Login failed');
+    }
+
+    const { token } = await response.json();
+    sessionStorage.setItem('admin_token', token);
+    sessionStorage.setItem('admin_authenticated', 'true');
+    
+    return true;
+  } catch (error) {
+    console.error('Error during admin login:', error);
     throw error;
   }
 };
