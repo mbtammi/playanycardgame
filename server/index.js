@@ -5,11 +5,67 @@ const cors = require('cors');
 const fs = require('fs').promises;
 const path = require('path');
 
+// Try Firebase Admin SDK first, fallback to local storage
+const admin = require('firebase-admin');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Initialize Firebase Admin SDK with better error handling
+let db = null;
+let firebaseConfigured = false;
+
+async function initializeFirebase() {
+  try {
+    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
+      console.log('🔥 Attempting Firebase initialization with service account...');
+      console.log('📋 Project ID:', process.env.FIREBASE_PROJECT_ID);
+      
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          privateKeyId: process.env.FIREBASE_PRIVATE_KEY_ID,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          clientId: process.env.FIREBASE_CLIENT_ID,
+        }),
+        projectId: process.env.FIREBASE_PROJECT_ID,
+      });
+      
+      db = admin.firestore();
+      
+      // Test the connection with more detailed error handling
+      try {
+        await db.collection('newsletter_emails').limit(1).get();
+        firebaseConfigured = true;
+        console.log('✅ Firebase Admin connected to project:', process.env.FIREBASE_PROJECT_ID);
+      } catch (testError) {
+        console.error('❌ Firebase permission test failed:', testError.message);
+        console.log('🔍 Possible issues:');
+        console.log('  - Service account project mismatch');
+        console.log('  - IAM permissions not granted');
+        console.log('  - Firestore not enabled');
+        console.log('📝 Using local file storage as fallback');
+        db = null;
+        firebaseConfigured = false;
+      }
+      
+    } else {
+      console.log('⚠️  Firebase credentials not found in environment');
+    }
+  } catch (error) {
+    console.error('❌ Firebase initialization failed:', error.message);
+    console.log('📝 Using local file storage as fallback');
+    db = null;
+    firebaseConfigured = false;
+  }
+}
+
+// Initialize Firebase on startup
+initializeFirebase();
 
 // Newsletter signup endpoint
 app.post('/api/newsletter', async (req, res) => {
@@ -25,6 +81,73 @@ app.post('/api/newsletter', async (req, res) => {
     if (!emailRegex.test(email)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
+
+    // Try Firebase first
+    if (firebaseConfigured && db) {
+      try {
+        console.log('🔥 Attempting to save to Firebase email_list...');
+        
+        // Reference to the email_list document
+        const emailListRef = db.collection('newsletter_emails').doc('email_list');
+        
+        // Get current email list
+        const doc = await emailListRef.get();
+        
+        let emailData;
+        if (doc.exists) {
+          emailData = doc.data();
+          
+          // Check if email already exists in the array
+          if (emailData.emails && emailData.emails.includes(email)) {
+            console.log('📧 Email already exists in Firebase:', email);
+            return res.status(200).json({ 
+              message: 'Already subscribed!',
+              alreadyExists: true,
+              savedTo: 'firebase'
+            });
+          }
+        } else {
+          // Initialize new document structure
+          emailData = {
+            emails: [],
+            totalCount: 0,
+            type: 'email_array',
+            created: new Date()
+          };
+        }
+
+        // Add new email to the array
+        if (!emailData.emails) {
+          emailData.emails = [];
+        }
+        
+        emailData.emails.push(email);
+        emailData.totalCount = emailData.emails.length;
+        emailData.lastUpdated = new Date();
+
+        // Save updated document
+        await emailListRef.set(emailData);
+        
+        console.log(`✅ Firebase: Added email to array: ${email} (total: ${emailData.totalCount})`);
+        
+        return res.status(200).json({ 
+          message: 'Successfully subscribed to newsletter!',
+          success: true,
+          savedTo: 'firebase',
+          totalSubscribers: emailData.totalCount
+        });
+        
+      } catch (firebaseError) {
+        console.error('❌ Firebase error:', firebaseError.message);
+        console.log('📝 Falling back to local storage...');
+        // Continue to local storage fallback below
+      }
+    } else {
+      console.log('📝 Firebase not configured, using local storage');
+    }
+
+    // Fallback to local file storage if Firebase fails or isn't configured
+    console.log('📝 Using local file storage for email:', email);
     
     // Create emails directory if it doesn't exist
     const emailsDir = path.join(__dirname, 'data');
@@ -35,7 +158,7 @@ app.post('/api/newsletter', async (req, res) => {
     } catch (err) {
       // Directory might already exist
     }
-    
+
     // Read existing emails
     let emails = [];
     try {
@@ -45,7 +168,7 @@ app.post('/api/newsletter', async (req, res) => {
       // File might not exist yet
       emails = [];
     }
-    
+
     // Check if email already exists
     const existingEmail = emails.find(entry => entry.email === email);
     if (existingEmail) {
@@ -54,7 +177,7 @@ app.post('/api/newsletter', async (req, res) => {
         alreadyExists: true 
       });
     }
-    
+
     // Add new email with timestamp
     const newEntry = {
       email,
@@ -67,13 +190,14 @@ app.post('/api/newsletter', async (req, res) => {
     // Save updated emails
     await fs.writeFile(emailsFile, JSON.stringify(emails, null, 2));
     
-    console.log(`New newsletter signup: ${email}`);
+    console.log(`📁 Local: New newsletter signup: ${email}`);
     
     res.status(200).json({ 
       message: 'Successfully subscribed to newsletter!',
-      success: true
+      success: true,
+      savedTo: 'local'
     });
-    
+
   } catch (error) {
     console.error('Newsletter signup error:', error);
     res.status(500).json({ error: 'Internal server error' });
