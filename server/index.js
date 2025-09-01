@@ -22,7 +22,6 @@ async function initializeFirebase() {
   try {
     if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
       console.log('🔥 Attempting Firebase initialization with service account...');
-      console.log('📋 Project ID:', process.env.FIREBASE_PROJECT_ID);
       
       admin.initializeApp({
         credential: admin.credential.cert({
@@ -41,7 +40,7 @@ async function initializeFirebase() {
       try {
         await db.collection('newsletter_emails').limit(1).get();
         firebaseConfigured = true;
-        console.log('✅ Firebase Admin connected to project:', process.env.FIREBASE_PROJECT_ID);
+        console.log('Firebase Admin connected');
       } catch (testError) {
         console.error('❌ Firebase permission test failed:', testError.message);
         console.log('🔍 Possible issues:');

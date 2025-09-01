@@ -28,6 +28,8 @@ This is an AI-powered card game creator built with React, TypeScript, and Vite. 
 4. **Game Engine** - Handles card logic, turns, and win conditions
 5. **Bot Players** - AI-driven opponents
 6. **Predefined Games** - Examples like Go Fish, Blackjack, Crazy 8s
+7. **Secure Development** - Best practices for API security and data protection and keep environment variables safe.
+8. **Over 100 games** - Aim for the application to be very versatile where there can be way over 100 games that the user can create
 
 ## Coding Guidelines
 - Use TypeScript strictly with proper type definitions

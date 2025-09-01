@@ -1077,3 +1077,68 @@
 .instant-win-play-again:hover {
   background-color: #15803d;
 }
+
+/* Responsive viewport height constraints */
+@media (max-height: 800px) {
+  .game-page {
+    min-height: auto;
+  }
+
+  .game-container {
+    padding: 1rem 0;
+  }
+
+  .game-table-outer {
+    min-height: 400px;
+    max-height: 75vh; /* Give game table most of the space */
+    margin: 1rem auto;
+    padding: 1rem;
+    gap: 1.5rem;
+    overflow-y: auto;
+  }
+
+  .game-area-container {
+    margin: 1rem auto;
+    gap: 1.5rem;
+  }
+}
+
+@media (max-height: 600px) {
+  .game-table-outer {
+    min-height: 300px;
+    max-height: 65vh; /* Still prioritize game content on small screens */
+    margin: 0.75rem auto;
+    padding: 0.75rem;
+    gap: 1rem;
+  }
+
+  .game-area-container {
+    margin: 0.75rem auto;
+    gap: 1rem;
+    padding: 0.75rem;
+  }
+
+  .game-container {
+    padding: 0.75rem 0;
+  }
+}
+
+/* Ensure buttons stay accessible on short screens */
+@media (max-height: 600px) {
+  .no-game-container,
+  .game-setup-container {
+    min-height: auto;
+    max-height: 85vh; /* More space for content */
+    overflow-y: auto;
+  }
+
+  .game-controls,
+  .game-actions {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    padding: 0.75rem;
+    border-top: 1px solid #e5e7eb;
+    z-index: 10;
+  }
+}

@@ -73,7 +73,7 @@ function getValidActionsForPlayer(gameState: GameState, rules: GameRules, botId:
 /**
  * Basic action validation without card selection
  */
-function isBasicActionValid(gameState: GameState, _rules: GameRules, botId: string, action: GameAction): boolean {
+function isBasicActionValid(gameState: GameState, rules: GameRules, botId: string, action: GameAction): boolean {
   const player = gameState.players.find(p => p.id === botId);
   if (!player) return false;
 
@@ -81,6 +81,14 @@ function isBasicActionValid(gameState: GameState, _rules: GameRules, botId: stri
     case 'draw':
       return gameState.deck.length > 0;
     case 'play':
+      // Smart play validation based on game type
+      if (isCardRequestGame(rules)) {
+        // In card request games (like Blackjack), "play" means "hit" - always valid
+        return true;
+      } else {
+        // In regular games, need cards to play
+        return player.hand.length > 0;
+      }
     case 'discard':
     case 'playToTable':
       return player.hand.length > 0;
@@ -90,6 +98,21 @@ function isBasicActionValid(gameState: GameState, _rules: GameRules, botId: stri
       // For custom actions, assume they're valid (let the game engine decide)
       return true;
   }
+}
+
+/**
+ * Detect if this is a card request game (like Blackjack) where "play" means "request card"
+ */
+function isCardRequestGame(rules: GameRules): boolean {
+  const { name, description, specialRules, objective } = rules;
+  const allText = [name, description, ...(specialRules || []), objective?.description || ''].join(' ').toLowerCase();
+  
+  // Blackjack-style games
+  if (allText.includes('blackjack') || allText.includes('21')) return true;
+  if (allText.includes('hit') && allText.includes('stand')) return true;
+  if (allText.includes('bust') || allText.includes('over 21')) return true;
+  
+  return false;
 }
 
 /**
@@ -129,8 +152,24 @@ function tryActionWithCards(
     return { action };
   }
 
+  // Play action: smart handling based on game type
+  if (action === 'play') {
+    if (isCardRequestGame(rules)) {
+      // In card request games (like Blackjack), "play" means "hit" - no cards needed
+      return { action };
+    } else {
+      // In regular games, need to find valid card combinations
+      const validCardCombinations = findValidCardCombinations(gameState, rules, botId, action, bot.hand);
+      
+      if (validCardCombinations.length > 0) {
+        const bestCombination = selectBestCardCombination(validCardCombinations, gameState, rules, action);
+        return { action, cardIds: bestCombination };
+      }
+    }
+  }
+
   // Actions that need cards - try different combinations
-  if (['play', 'discard', 'playToTable'].includes(action)) {
+  if (['discard', 'playToTable'].includes(action)) {
     const validCardCombinations = findValidCardCombinations(gameState, rules, botId, action, bot.hand);
     
     if (validCardCombinations.length > 0) {
@@ -140,9 +179,15 @@ function tryActionWithCards(
     }
   }
 
-  // Custom actions - try with random cards or no cards
-  const randomCard = bot.hand.length > 0 ? [(bot.hand[0] as any).id] : undefined;
-  return { action, cardIds: randomCard };
+  // Custom actions - try with random cards or no cards based on game type
+  if (isCardRequestGame(rules)) {
+    // For card request games, most actions don't need cards from hand
+    return { action };
+  } else {
+    // For regular games, try with a random card if available
+    const randomCard = bot.hand.length > 0 ? [(bot.hand[0] as any).id] : undefined;
+    return { action, cardIds: randomCard };
+  }
 }
 
 /**

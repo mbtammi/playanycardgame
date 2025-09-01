@@ -4,9 +4,9 @@ export const isProduction = import.meta.env.VITE_APP_ENV === 'production' || imp
 
 // Get the default page based on environment
 export const getDefaultPage = (): string => {
-  // In development, show examples page for easy testing
+  // In development, show landing page for easy testing
   if (isDevelopment) {
-    return import.meta.env.VITE_DEFAULT_PAGE || 'examples';
+    return import.meta.env.VITE_DEFAULT_PAGE || 'landing';
   }
   
   // In production, show newsletter signup

@@ -294,12 +294,21 @@ If a player description mentions "I will get X cards and others get Y", use card
       return this.state.deck.length > 0;
     }
     if (action === 'play') {
-      if (!cards || cards.length === 0) return false;
-      const hasCards = cards.every(cardId => player.hand.some(card => card.id === cardId));
-      if (!hasCards) return false;
-      
-      // General play validation - let AI rules handle game-specific logic
-      return true;
+      // Intelligent play action validation based on game context
+      if (this.isCardRequestGame()) {
+        // In card request games like Blackjack, "play" means "hit" - no cards from hand needed
+        return true;
+      } else {
+        // In most card games, "play" means "play cards from hand"
+        if (!cards || cards.length === 0) {
+          return false; // Need cards to play
+        }
+        const hasCards = cards.every(cardId => player.hand.some(card => card.id === cardId));
+        if (!hasCards) return false;
+        
+        // General play validation - let AI rules handle game-specific logic
+        return true;
+      }
     }
     if (action === 'playToTable') {
       if (!cards || cards.length !== 1) return false;
@@ -325,6 +334,9 @@ If a player description mentions "I will get X cards and others get Y", use card
       const hasPoints = (this.state.scores[player.id] || 0) > 0;
       return cardExists && hasPoints;
     }
+    if (action === 'pass') {
+      return true; // Pass is always valid
+    }
     // For custom actions, always allow (unless you want to add custom validation)
     return true;
   }
@@ -345,8 +357,33 @@ If a player description mentions "I will get X cards and others get Y", use card
     const player = this.state.players.find(p => p.id === playerId)!;
     let message = '';
     try {
+      // === INTELLIGENT ACTION INTERPRETATION ===
+      // The same action word can mean different things in different games
+      
+      if (action === 'play') {
+        // Interpret "play" action based on game context
+        if (this.isCardRequestGame()) {
+          // In games like Blackjack, "play" means "request another card"
+          this.handleDrawAction(player);
+          message = `${player.name} hits (requests another card)`;
+        } else if (cardIds && cardIds.length > 0) {
+          // In most card games, "play" means "play cards from hand"
+          const cardsToPlay = cardIds.map(id => {
+            const cardIndex = player.hand.findIndex(card => card.id === id);
+            if (cardIndex === -1) {
+              throw new Error(`Player doesn't have card ${id}`);
+            }
+            return player.hand.splice(cardIndex, 1)[0];
+          });
+          this.state.communityCards.push(...cardsToPlay);
+          message = `${player.name} played ${cardsToPlay.length} card(s)`;
+        } else {
+          // No cards specified, treat as a generic play action
+          message = `${player.name} performed ${action}`;
+        }
+      }
       // === SPECIAL ACTION HANDLING ===
-      if (action === 'flip' && cardIds && cardIds.length === 1) {
+      else if (action === 'flip' && cardIds && cardIds.length === 1) {
         // Handle flip action for memory games
         const result = this.handleFlipAction(player, cardIds[0]);
         message = result.message;
@@ -354,6 +391,16 @@ If a player description mentions "I will get X cards and others get Y", use card
         // Handle peek action for memory games
         const result = this.handlePeekAction(player, cardIds[0]);
         message = result.message;
+      } 
+      // === STANDARD ACTION HANDLING ===
+      else if (action.toLowerCase().includes('draw')) {
+        this.handleDrawAction(player);
+        message = `${player.name} drew a card`;
+      } else if (action.toLowerCase().includes('discard') && cardIds && cardIds.length === 1) {
+        this.handleDiscardAction(player, cardIds[0]);
+        message = `${player.name} discarded a card`;
+      } else if (action.toLowerCase().includes('pass') || action.toLowerCase().includes('stand') || action.toLowerCase().includes('stay')) {
+        message = `${player.name} ${this.getPassActionName()}`;
       } 
       // === UNIVERSAL HANDLING ===
       else if (cardIds && cardIds.length > 0) {
@@ -367,15 +414,8 @@ If a player description mentions "I will get X cards and others get Y", use card
         });
         this.state.communityCards.push(...cardsToPlay);
         message = `${player.name} played ${cardsToPlay.length} card(s)`;
-      } else if (action.toLowerCase().includes('draw')) {
-        this.handleDrawAction(player);
-        message = `${player.name} drew a card`;
-      } else if (action.toLowerCase().includes('discard') && cardIds && cardIds.length === 1) {
-        this.handleDiscardAction(player, cardIds[0]);
-        message = `${player.name} discarded a card`;
-      } else if (action.toLowerCase().includes('pass')) {
-        message = `${player.name} passed their turn`;
       } else {
+        // Custom action without cards
         message = `${player.name} performed ${action}`;
       }
 
@@ -563,6 +603,49 @@ If a player description mentions "I will get X cards and others get Y", use card
     }, 3000);
     
     return { message: `${player.name} peeked at ${card.rank} ${card.suit} (-1 point)` };
+  }
+
+  /**
+   * Intelligent game type detection: Does this game involve requesting cards rather than playing from hand?
+   */
+  private isCardRequestGame(): boolean {
+    const { name, description, specialRules, objective } = this.state.rules;
+    const allText = [name, description, ...(specialRules || []), objective?.description || ''].join(' ').toLowerCase();
+    
+    // Blackjack-style games where "play" means "hit" (request card)
+    if (allText.includes('blackjack') || allText.includes('21')) return true;
+    if (allText.includes('hit') && allText.includes('stand')) return true;
+    if (allText.includes('bust') || allText.includes('over 21')) return true;
+    
+    // Other card-request games
+    if (allText.includes('request card') || allText.includes('ask for card')) return true;
+    if (allText.includes('dealer gives') || allText.includes('receive card')) return true;
+    
+    // Games where you don't play from hand but accumulate cards
+    if (this.state.rules.setup.cardsPerPlayer === 0 && allText.includes('draw')) return true;
+    
+    return false;
+  }
+
+  /**
+   * Get contextual name for pass action based on game type
+   */
+  private getPassActionName(): string {
+    const { name, description, specialRules } = this.state.rules;
+    const allText = [name, description, ...(specialRules || [])].join(' ').toLowerCase();
+    
+    // Blackjack and similar games
+    if (allText.includes('blackjack') || allText.includes('21')) return 'stands';
+    if (allText.includes('hit') && allText.includes('stand')) return 'stands';
+    
+    // Poker-style games
+    if (allText.includes('poker') || allText.includes('fold')) return 'folds';
+    
+    // General games
+    if (allText.includes('skip')) return 'skips their turn';
+    if (allText.includes('wait')) return 'waits';
+    
+    return 'passes their turn';
   }
 
   /**
@@ -905,11 +988,16 @@ If a player description mentions "I will get X cards and others get Y", use card
     layout: 'grid' | 'centered' | 'sequence' | 'scattered' | 'custom';
     zones: Array<{
       id: string;
-      type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard';
+      type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard' | 'grid' | 'center-area' | 'player-zone';
       cards: Card[];
       position?: { x: number; y: number };
       allowDrop?: boolean;
+      allowFlip?: boolean;
+      faceDown?: boolean;
       label?: string;
+      gridSize?: { rows: number; cols: number };
+      maxCards?: number;
+      playerIndex?: number;
     }>;
     metadata: {
       gameType: string;
@@ -920,6 +1008,11 @@ If a player description mentions "I will get X cards and others get Y", use card
       flexiblePlacement: boolean;
       multipleDecks: boolean;
       tableLayout?: any;
+      supportsFlipping: boolean;
+      supportsPeeking: boolean;
+      hasPlayerZones: boolean;
+      hasGridLayout: boolean;
+      hasCenterArea: boolean;
     };
   } {
     const rules = this.state.rules;
@@ -957,6 +1050,14 @@ If a player description mentions "I will get X cards and others get Y", use card
     const needsTable = this.analyzeTableNeed();
     const tableType = rulesLayout?.type ? this.mapLayoutTypeToTableType(rulesLayout.type) : this.detectTableType(table, rules);
     
+    // AI-driven metadata analysis
+    const allText = `${rules.name} ${rules.description} ${rules.specialRules?.join(' ')}`.toLowerCase();
+    const supportsFlipping = allText.includes('flip') || allText.includes('face-down') || allText.includes('memory');
+    const supportsPeeking = allText.includes('peek') || allText.includes('look') || allText.includes('spy');
+    const hasPlayerZones = zones.some(z => z.type === 'player-zone');
+    const hasGridLayout = allText.includes('grid') || allText.includes('4x4') || zones.some(z => z.type === 'grid');
+    const hasCenterArea = allText.includes('center') || zones.some(z => z.type === 'center-area');
+    
     return {
       tableType,
       table: needsTable ? table : {},
@@ -971,6 +1072,11 @@ If a player description mentions "I will get X cards and others get Y", use card
         flexiblePlacement: rulesLayout?.allowFlexiblePlacement || this.supportsFlexiblePlacement(),
         multipleDecks: rules.setup.multipleDecks || false,
         tableLayout: rulesLayout,
+        supportsFlipping,
+        supportsPeeking,
+        hasPlayerZones,
+        hasGridLayout,
+        hasCenterArea,
       }
     };
   }
@@ -1031,6 +1137,22 @@ If a player description mentions "I will get X cards and others get Y", use card
   private detectTableType(table: any, rules: GameRules): 'none' | 'suit-based' | 'pile-based' | 'sequence' | 'scattered' | 'custom' {
     if (!this.analyzeTableNeed()) return 'none';
     
+    const { name, description, specialRules } = rules;
+    const lowerName = name.toLowerCase();
+    const lowerDesc = description?.toLowerCase() || '';
+    const lowerSpecial = specialRules?.join(' ').toLowerCase() || '';
+    const allText = `${lowerName} ${lowerDesc} ${lowerSpecial}`;
+    
+    // AI-enhanced detection for Memory Palace and similar games
+    const hasMemoryElements = allText.includes('memory') || allText.includes('flip') || allText.includes('match');
+    const hasGridLayout = allText.includes('grid') || allText.includes('4x4') || allText.includes('3x3') || allText.includes('16 cards');
+    const hasCenterArea = allText.includes('center') || allText.includes('sequence') || allText.includes('build sequences');
+    
+    // Memory Palace detection
+    if (hasMemoryElements && (hasGridLayout || hasCenterArea)) {
+      return 'custom'; // Memory Palace uses custom layout
+    }
+    
     // Check if explicitly suit-based
     const hasSuitKeys = Object.keys(table).some(key => 
       ['hearts', 'diamonds', 'clubs', 'spades'].includes(key)
@@ -1039,28 +1161,21 @@ If a player description mentions "I will get X cards and others get Y", use card
     if (hasSuitKeys) return 'suit-based';
     
     // Check for sequence building
-    const hasSequenceRules = rules.specialRules?.some(rule => 
-      rule.toLowerCase().includes('build') ||
-      rule.toLowerCase().includes('sequence') ||
-      rule.toLowerCase().includes('consecutive')
-    );
+    const hasSequenceRules = allText.includes('build') || 
+                             allText.includes('sequence') || 
+                             allText.includes('consecutive');
     
     if (hasSequenceRules) return 'sequence';
     
     // Check for pile-based games
-    const hasPileRules = rules.specialRules?.some(rule => 
-      rule.toLowerCase().includes('pile') ||
-      rule.toLowerCase().includes('stack')
-    );
+    const hasPileRules = allText.includes('pile') || allText.includes('stack');
     
     if (hasPileRules) return 'pile-based';
     
     // Check for scattered/search games
-    const hasScatteredRules = rules.specialRules?.some(rule => 
-      rule.toLowerCase().includes('scatter') ||
-      rule.toLowerCase().includes('find') ||
-      rule.toLowerCase().includes('search')
-    );
+    const hasScatteredRules = allText.includes('scatter') || 
+                             allText.includes('find') || 
+                             allText.includes('search');
     
     if (hasScatteredRules) return 'scattered';
     
@@ -1070,27 +1185,44 @@ If a player description mentions "I will get X cards and others get Y", use card
   /**
    * Generate table zones based on game type and AI analysis
    */
-  private generateTableZones(table: any, _rules: GameRules, tableType: string): Array<{
+  private generateTableZones(table: any, rules: GameRules, tableType: string): Array<{
     id: string;
-    type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard';
+    type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard' | 'grid' | 'center-area' | 'player-zone';
     cards: Card[];
     position?: { x: number; y: number };
     allowDrop?: boolean;
+    allowFlip?: boolean;
+    faceDown?: boolean;
     label?: string;
+    gridSize?: { rows: number; cols: number };
+    maxCards?: number;
+    playerIndex?: number;
   }> {
     const zones: Array<{
       id: string;
-      type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard';
+      type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard' | 'grid' | 'center-area' | 'player-zone';
       cards: Card[];
       position?: { x: number; y: number };
       allowDrop?: boolean;
+      allowFlip?: boolean;
+      faceDown?: boolean;
       label?: string;
+      gridSize?: { rows: number; cols: number };
+      maxCards?: number;
+      playerIndex?: number;
     }> = [];
+    
+    const { name, description, specialRules } = rules;
+    const allText = `${name} ${description} ${specialRules?.join(' ')}`.toLowerCase();
     
     switch (tableType) {
       case 'none':
         // No table zones needed
         break;
+        
+      case 'custom':
+        // AI-driven custom zone generation for games like Memory Palace
+        return this.generateCustomZones(table, rules, allText);
         
       case 'suit-based':
         // Create suit-based zones
@@ -1138,9 +1270,98 @@ If a player description mentions "I will get X cards and others get Y", use card
         break;
         
       default:
-        // Custom layout - let AI decide
-        break;
+        // Basic zones for unknown games
+        zones.push({
+          id: 'main-area',
+          type: 'pile',
+          cards: Object.values(table).flat() as Card[] || [],
+          allowDrop: true,
+          label: 'Game Area'
+        });
     }
+    
+    return zones;
+  }
+
+  /**
+   * Generate custom zones for complex games like Memory Palace
+   */
+  private generateCustomZones(_table: any, _rules: GameRules, allText: string): Array<{
+    id: string;
+    type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard' | 'grid' | 'center-area' | 'player-zone';
+    cards: Card[];
+    position?: { x: number; y: number };
+    allowDrop?: boolean;
+    allowFlip?: boolean;
+    faceDown?: boolean;
+    label?: string;
+    gridSize?: { rows: number; cols: number };
+    maxCards?: number;
+    playerIndex?: number;
+  }> {
+    const zones: Array<{
+      id: string;
+      type: 'pile' | 'sequence' | 'drop-zone' | 'deck' | 'discard' | 'grid' | 'center-area' | 'player-zone';
+      cards: Card[];
+      position?: { x: number; y: number };
+      allowDrop?: boolean;
+      allowFlip?: boolean;
+      faceDown?: boolean;
+      label?: string;
+      gridSize?: { rows: number; cols: number };
+      maxCards?: number;
+      playerIndex?: number;
+    }> = [];
+
+    // Detect Memory Palace type games
+    const hasMemoryElements = allText.includes('memory') || allText.includes('flip') || allText.includes('match');
+    const hasGridLayout = allText.includes('grid') || allText.includes('4x4') || allText.includes('16 cards');
+    const hasCenterArea = allText.includes('center') || allText.includes('sequence') || allText.includes('build sequences');
+    
+    if (hasMemoryElements && hasGridLayout) {
+      // Create memory grid zone
+      zones.push({
+        id: 'memory-grid',
+        type: 'grid',
+        cards: this.state.tableZones?.find(z => z.id === 'memory-grid')?.cards || [],
+        allowFlip: true,
+        faceDown: true,
+        label: 'Memory Grid',
+        gridSize: { rows: 4, cols: 4 },
+        position: { x: 50, y: 50 }
+      });
+    }
+    
+    if (hasCenterArea) {
+      // Create center area for building sequences
+      zones.push({
+        id: 'center-area',
+        type: 'center-area',
+        cards: this.state.tableZones?.find(z => z.id === 'center-area')?.cards || [],
+        allowDrop: true,
+        label: 'Center Area',
+        position: { x: 400, y: 300 }
+      });
+    }
+    
+    // Always add deck and discard zones for card games
+    zones.push({
+      id: 'deck',
+      type: 'deck',
+      cards: [],
+      allowDrop: false,
+      label: 'Deck',
+      position: { x: 50, y: 400 }
+    });
+    
+    zones.push({
+      id: 'discard',
+      type: 'discard',
+      cards: [],
+      allowDrop: true,
+      label: 'Discard',
+      position: { x: 150, y: 400 }
+    });
     
     return zones;
   }

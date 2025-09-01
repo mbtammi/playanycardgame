@@ -22,12 +22,6 @@ if (!getApps().length) {
       throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
     }
 
-    console.log('Initializing Firebase with environment variables...');
-    console.log('Project ID:', process.env.FIREBASE_PROJECT_ID);
-    console.log('Client Email:', process.env.FIREBASE_CLIENT_EMAIL);
-    console.log('Private Key ID:', process.env.FIREBASE_PRIVATE_KEY_ID);
-    console.log('Client ID:', process.env.FIREBASE_CLIENT_ID);
-
     initializeApp({
       credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,

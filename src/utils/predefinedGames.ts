@@ -14,6 +14,7 @@ const goFishRules: GameRules = {
   setup: {
     cardsPerPlayer: 7,
     deckSize: 52,
+    keepDrawnCard: true, // Cards go to hand when drawn
   },
   objective: {
     type: 'collect_sets',
@@ -23,18 +24,13 @@ const goFishRules: GameRules = {
     order: 'clockwise',
     phases: [
       {
-        name: 'ask',
+        name: 'playing',
         required: true,
-        actions: ['call'],
-      },
-      {
-        name: 'draw',
-        required: false,
-        actions: ['draw'],
+        actions: ['play', 'draw', 'pass'],
       },
     ],
   },
-  actions: ['call', 'draw', 'reveal'],
+  actions: ['play', 'draw', 'pass'], // Use standard actions the engine understands
   winConditions: [
     {
       type: 'highest_score',
@@ -135,6 +131,50 @@ const blackjackRules: GameRules = {
     'Face cards (J, Q, K) are worth 10',
     'If your hand exceeds 21, you bust and lose',
     'Blackjack (21 with first 2 cards) beats regular 21',
+  ],
+};
+
+// Simple Draw Black Card game for testing
+const drawBlackCardRules: GameRules = {
+  id: 'draw-black-card',
+  name: 'Draw Black Card',
+  description: 'Keep drawing cards until you find a black card to win!',
+  players: {
+    min: 1,
+    max: 4,
+    recommended: 1,
+  },
+  setup: {
+    cardsPerPlayer: 0, // Start with no cards
+    deckSize: 52,
+    keepDrawnCard: false, // Cards go to discard pile for viewing
+  },
+  objective: {
+    type: 'custom',
+    description: 'Draw a black card (spades or clubs) to win instantly',
+  },
+  turnStructure: {
+    order: 'clockwise',
+    phases: [
+      {
+        name: 'playing',
+        required: true,
+        actions: ['draw', 'pass'],
+      },
+    ],
+  },
+  actions: ['draw', 'pass'],
+  winConditions: [
+    {
+      type: 'custom',
+      description: 'Win by drawing any black card (spades or clubs)',
+    },
+  ],
+  specialRules: [
+    'Draw cards from the deck one at a time',
+    'Red cards (hearts/diamonds) do nothing',
+    'Black cards (spades/clubs) win the game instantly',
+    'Simple game perfect for testing the engine',
   ],
 };
 
@@ -272,6 +312,17 @@ const freshStartRules: GameRules = {
 };
 
 export const predefinedGames: PredefinedGame[] = [
+  {
+    id: 'draw-black-card',
+    name: 'Draw Black Card',
+    description: 'Simple test game - draw until you find a black card!',
+    thumbnail: '🃏',
+    difficulty: 'easy',
+    playerCount: '1-4 players',
+    duration: '2-5 min',
+    rules: drawBlackCardRules,
+    featured: true,
+  },
   {
     id: 'go-fish',
     name: 'Go Fish',
