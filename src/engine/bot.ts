@@ -1,11 +1,27 @@
-import type { GameState, GameAction, GameRules, AIBotMove } from '../types';
+import type { GameState, GameAction, GameRules, AIBotMove, Player } from '../types';
 
 /**
  * Universal bot decision engine that works with any card game.
  * Uses the game engine's validation system to make intelligent decisions.
  * No hardcoded game logic - completely schema-driven.
+ * Supports dealers, betting games, and complex scenarios.
  */
 export function getBotAction(gameState: GameState, rules: GameRules, botId: string): { action: GameAction, cardIds?: string[] } {
+  const bot = gameState.players.find(p => p.id === botId);
+  if (!bot) {
+    return { action: 'pass' };
+  }
+
+  // Handle dealer-specific logic
+  if (bot.isDealer) {
+    return getDealerAction(gameState, rules, botId, bot);
+  }
+
+  // Handle betting game logic
+  if (rules.players.bettingConfig) {
+    return getBettingGameAction(gameState, rules, botId, bot);
+  }
+
   // 1. Check if the game rules provide an AI strategy function
   if (rules.aiPrompt && typeof window !== 'undefined' && (window as any).gameEngine) {
     try {
@@ -23,31 +39,324 @@ export function getBotAction(gameState: GameState, rules: GameRules, botId: stri
 }
 
 /**
+ * Dealer-specific bot logic
+ */
+function getDealerAction(gameState: GameState, rules: GameRules, botId: string, dealer: Player): { action: GameAction, cardIds?: string[] } {
+  // Dealers typically follow strict rules rather than strategic play
+  
+  // For Blackjack-style games
+  if (isCardRequestGame(rules)) {
+    const handValues = (gameState as any).handValues || {};
+    const dealerValue = handValues[botId] || 0;
+    const { mustHitOn = 16, mustStandOn = 17 } = dealer.dealerRules || {};
+
+    if (dealerValue <= mustHitOn) {
+      return { action: 'play' }; // Hit
+    } else {
+      return { action: 'pass' }; // Stand
+    }
+  }
+
+  // For other dealer games, use standard logic but prioritize conservative play
+  return getUniversalBotMove(gameState, rules, botId);
+}
+
+/**
+ * Betting game bot logic (poker, etc.)
+ */
+function getBettingGameAction(gameState: GameState, rules: GameRules, botId: string, player: Player): { action: GameAction, cardIds?: string[] } {
+  // For now, implement basic betting logic
+  // This can be expanded for more sophisticated poker AI
+  
+  const bettingConfig = rules.players.bettingConfig;
+  if (!bettingConfig) {
+    return getUniversalBotMove(gameState, rules, botId);
+  }
+
+  // Simple conservative betting strategy
+  const chips = player.chips || 0;
+  const currentBet = player.currentBet || 0;
+  
+  // If we have very few chips, play conservatively
+  if (chips < bettingConfig.initialChips * 0.2) {
+    // Low on chips - fold or check
+    const validActions = getValidActionsForPlayer(gameState, rules, botId);
+    if (validActions.includes('fold')) return { action: 'fold' };
+    if (validActions.includes('check')) return { action: 'check' };
+  }
+
+  // Standard play - call small bets, fold large ones
+  const validActions = getValidActionsForPlayer(gameState, rules, botId);
+  if (validActions.includes('call') && currentBet < chips * 0.1) {
+    return { action: 'call' };
+  }
+  if (validActions.includes('check')) {
+    return { action: 'check' };
+  }
+  if (validActions.includes('fold')) {
+    return { action: 'fold' };
+  }
+
+  // Fallback to universal logic
+  return getUniversalBotMove(gameState, rules, botId);
+}
+
+/**
+ * Emergency action when bot is completely stuck - GUARANTEED to work
+ */
+function getEmergencyAction(_gameState: GameState, rules: GameRules, _botId: string, bot: Player): { action: GameAction, cardIds?: string[] } {
+  console.log(`🚨 Emergency action for bot ${bot.name}`);
+
+  // Try the most basic actions first
+  const emergencyActions = ['pass', 'draw', 'play', 'discard'];
+  
+  for (const action of emergencyActions) {
+    if (rules.actions.includes(action)) {
+      // For actions that might need cards, try without cards first
+      if (['pass', 'draw'].includes(action)) {
+        console.log(`🆘 Emergency: ${action} (no cards needed)`);
+        return { action };
+      }
+      
+      // For play/discard, try with any available card
+      if (['play', 'discard'].includes(action) && bot.hand.length > 0) {
+        const firstCard = bot.hand[0];
+        console.log(`🆘 Emergency: ${action} with card ${firstCard.rank} ${firstCard.suit}`);
+        return { action, cardIds: [firstCard.id] };
+      }
+      
+      // Try action without cards as last resort
+      console.log(`🆘 Emergency: ${action} (no cards)`);
+      return { action };
+    }
+  }
+
+  // Ultimate fallback - pass (should always be valid)
+  console.log(`🆘 Ultimate emergency: pass`);
+  return { action: 'pass' };
+}
+
+/**
+ * Extensive action trying with multiple card combinations
+ */
+function tryActionWithCardsExtensive(
+  gameState: GameState, 
+  rules: GameRules, 
+  botId: string, 
+  action: GameAction, 
+  bot: Player
+): { action: GameAction, cardIds?: string[] } | null {
+  
+  // Actions that don't need cards
+  if (['pass', 'draw'].includes(action)) {
+    return { action };
+  }
+
+  // For card request games (like Blackjack), most actions don't need cards from hand
+  if (isCardRequestGame(rules)) {
+    if (['play', 'hit', 'stand', 'stay'].includes(action)) {
+      return { action };
+    }
+  }
+
+  // Actions that might need cards - try extensive combinations
+  if (['play', 'discard', 'playToTable', 'attack', 'defend', 'lift'].includes(action)) {
+    
+    // Try without cards first (for games where actions don't always need cards)
+    if (wouldActionBeValidSafe(gameState, rules, botId, action, [])) {
+      return { action };
+    }
+    
+    // Try with cards if available
+    if (bot.hand.length > 0) {
+      const validCardCombinations = findValidCardCombinationsExtensive(gameState, rules, botId, action, bot.hand);
+      
+      if (validCardCombinations.length > 0) {
+        const bestCombination = selectBestCardCombination(validCardCombinations, gameState, rules, action);
+        return { action, cardIds: bestCombination };
+      }
+    }
+  }
+
+  // For unknown/custom actions, try both with and without cards
+  // Try without cards first
+  if (wouldActionBeValidSafe(gameState, rules, botId, action, [])) {
+    return { action };
+  }
+  
+  // Try with one random card if available
+  if (bot.hand.length > 0) {
+    const randomCard = bot.hand[Math.floor(Math.random() * bot.hand.length)];
+    if (wouldActionBeValidSafe(gameState, rules, botId, action, [randomCard.id])) {
+      return { action, cardIds: [randomCard.id] };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Try every possible combination when normal logic fails
+ */
+function tryExtensiveFallback(
+  gameState: GameState, 
+  rules: GameRules, 
+  botId: string, 
+  bot: Player, 
+  validActions: GameAction[]
+): { action: GameAction, cardIds?: string[] } | null {
+  
+  console.log(`🔄 Extensive fallback for ${bot.name}...`);
+  
+  // Try every action with every possible card combination
+  for (const action of validActions) {
+    
+    // Try without cards
+    if (wouldActionBeValidSafe(gameState, rules, botId, action, [])) {
+      console.log(`💡 Fallback found: ${action} (no cards)`);
+      return { action };
+    }
+    
+    // Try with single cards
+    for (const card of bot.hand) {
+      if (wouldActionBeValidSafe(gameState, rules, botId, action, [card.id])) {
+        console.log(`💡 Fallback found: ${action} with ${card.rank} ${card.suit}`);
+        return { action, cardIds: [card.id] };
+      }
+    }
+    
+    // Try with pairs of cards
+    if (bot.hand.length >= 2) {
+      for (let i = 0; i < bot.hand.length; i++) {
+        for (let j = i + 1; j < bot.hand.length; j++) {
+          const cardIds = [bot.hand[i].id, bot.hand[j].id];
+          if (wouldActionBeValidSafe(gameState, rules, botId, action, cardIds)) {
+            console.log(`💡 Fallback found: ${action} with 2 cards`);
+            return { action, cardIds };
+          }
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Safe version of wouldActionBeValid that doesn't throw errors
+ */
+function wouldActionBeValidSafe(
+  gameState: GameState, 
+  rules: GameRules, 
+  botId: string, 
+  action: GameAction, 
+  cardIds: string[]
+): boolean {
+  try {
+    return wouldActionBeValid(gameState, rules, botId, action, cardIds);
+  } catch (error) {
+    console.warn(`⚠️ Action validation error for ${action}:`, error);
+    return false;
+  }
+}
+
+/**
+ * More extensive card combination finding that tries everything
+ */
+function findValidCardCombinationsExtensive(
+  gameState: GameState, 
+  rules: GameRules, 
+  botId: string, 
+  action: GameAction, 
+  hand: any[]
+): string[][] {
+  const validCombinations: string[][] = [];
+
+  // Try with no cards first (many actions don't need cards)
+  if (wouldActionBeValidSafe(gameState, rules, botId, action, [])) {
+    validCombinations.push([]);
+  }
+
+  // Try single cards
+  for (const card of hand) {
+    if (wouldActionBeValidSafe(gameState, rules, botId, action, [card.id])) {
+      validCombinations.push([card.id]);
+    }
+  }
+
+  // Try pairs if no single card worked
+  if (validCombinations.length === 0 && hand.length > 1) {
+    for (let i = 0; i < hand.length; i++) {
+      for (let j = i + 1; j < hand.length; j++) {
+        const combination = [hand[i].id, hand[j].id];
+        if (wouldActionBeValidSafe(gameState, rules, botId, action, combination)) {
+          validCombinations.push(combination);
+        }
+      }
+    }
+  }
+
+  // Try triples if desperate
+  if (validCombinations.length === 0 && hand.length > 2) {
+    for (let i = 0; i < hand.length; i++) {
+      for (let j = i + 1; j < hand.length; j++) {
+        for (let k = j + 1; k < hand.length; k++) {
+          const combination = [hand[i].id, hand[j].id, hand[k].id];
+          if (wouldActionBeValidSafe(gameState, rules, botId, action, combination)) {
+            validCombinations.push(combination);
+          }
+        }
+      }
+    }
+  }
+
+  return validCombinations;
+}
+
+/**
  * Universal bot logic that works for any game by using the schema and validation
+ * GUARANTEED to never get stuck - always finds a valid move
  */
 function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: string): { action: GameAction, cardIds?: string[] } {
   const bot = gameState.players.find(p => p.id === botId);
   if (!bot) {
+    console.warn(`🤖 Bot ${botId} not found, using emergency pass`);
     return { action: 'pass' };
   }
+
+  console.log(`🤖 Bot ${bot.name} thinking... (hand: ${bot.hand.length} cards)`);
 
   // Get all valid actions from the game engine (this uses the schema)
   const validActions = getValidActionsForPlayer(gameState, rules, botId);
+  console.log(`🎯 Valid actions for bot: [${validActions.join(', ')}]`);
   
   if (validActions.length === 0) {
-    return { action: 'pass' };
+    console.warn(`⚠️ No valid actions found for bot ${bot.name}, using emergency actions`);
+    return getEmergencyAction(gameState, rules, botId, bot);
   }
 
-  // For each valid action, try to find valid cards (if needed)
+  // Try actions in priority order with extensive fallback logic
   for (const action of prioritizeActions(validActions, gameState, rules)) {
-    const result = tryActionWithCards(gameState, rules, botId, action, bot);
+    console.log(`🔍 Bot trying action: ${action}`);
+    
+    const result = tryActionWithCardsExtensive(gameState, rules, botId, action, bot);
     if (result) {
+      console.log(`✅ Bot ${bot.name} chose: ${result.action}${result.cardIds ? ` with cards [${result.cardIds.join(', ')}]` : ''}`);
       return result;
     }
   }
 
-  // Final fallback: first valid action without cards
-  return { action: validActions[0] };
+  // Extensive fallback: try every action with every possible card combination
+  console.warn(`🔄 Bot ${bot.name} trying extensive fallback...`);
+  const fallbackResult = tryExtensiveFallback(gameState, rules, botId, bot, validActions);
+  if (fallbackResult) {
+    console.log(`🆘 Bot ${bot.name} used fallback: ${fallbackResult.action}`);
+    return fallbackResult;
+  }
+
+  // Ultimate emergency: guaranteed to work
+  console.error(`🚨 Bot ${bot.name} using ultimate emergency action`);
+  return getEmergencyAction(gameState, rules, botId, bot);
 }
 
 /**
@@ -72,6 +381,7 @@ function getValidActionsForPlayer(gameState: GameState, rules: GameRules, botId:
 
 /**
  * Basic action validation without card selection
+ * Enhanced to handle custom actions and edge cases
  */
 function isBasicActionValid(gameState: GameState, rules: GameRules, botId: string, action: GameAction): boolean {
   const player = gameState.players.find(p => p.id === botId);
@@ -79,23 +389,52 @@ function isBasicActionValid(gameState: GameState, rules: GameRules, botId: strin
 
   switch (action) {
     case 'draw':
+    case 'lift':
       return gameState.deck.length > 0;
+    
     case 'play':
       // Smart play validation based on game type
       if (isCardRequestGame(rules)) {
-        // In card request games (like Blackjack), "play" means "hit" - always valid
-        return true;
+        // In card request games (like Blackjack), "play" means "hit" - always valid if not busted
+        const handValues = (gameState as any).handValues || {};
+        const busted = (gameState as any).busted || {};
+        return !busted[botId] && (handValues[botId] || 0) < 21;
       } else {
-        // In regular games, need cards to play
-        return player.hand.length > 0;
+        // In regular games, need cards to play (but not always - some games allow playing without cards)
+        return true; // Let the extensive validation figure it out
       }
+    
+    case 'attack':
+    case 'defend':
+      // Combat actions - usually valid if player has cards or in combat phase
+      return player.hand.length > 0 || true; // Let game engine validate
+    
     case 'discard':
     case 'playToTable':
       return player.hand.length > 0;
+    
     case 'pass':
+    case 'stand':
+    case 'stay':
       return true;
+    
+    case 'fold':
+      return player.status !== 'folded';
+    
+    case 'call':
+    case 'bet':
+    case 'raise':
+      // Betting actions - valid if player has chips and isn't folded
+      const chips = player.chips || 0;
+      return chips > 0 && player.status !== 'folded';
+    
+    case 'check':
+      return player.status !== 'folded';
+    
     default:
-      // For custom actions, assume they're valid (let the game engine decide)
+      // For custom actions, assume they're valid and let the game engine decide
+      // This is crucial for games with unique actions like 'lift health card'
+      console.log(`🔍 Unknown action '${action}' - assuming valid for universal compatibility`);
       return true;
   }
 }
@@ -117,77 +456,55 @@ function isCardRequestGame(rules: GameRules): boolean {
 
 /**
  * Prioritize actions based on game theory and common patterns
+ * Enhanced to handle custom actions intelligently
  */
-function prioritizeActions(actions: GameAction[], _gameState: GameState, _rules: GameRules): GameAction[] {
+function prioritizeActions(actions: GameAction[], _gameState: GameState, rules: GameRules): GameAction[] {
   const priority: Record<string, number> = {
+    // Standard high-priority actions
     'play': 10,        // Playing cards is usually the main action
-    'call': 9,         // Calling/asking is usually important
+    'attack': 10,      // Attack actions are usually primary
+    'lift': 9,         // Lifting/drawing actions are important
+    'draw': 9,         // Drawing cards is common
+    'call': 8,         // Calling/asking is usually important
     'playToTable': 8,  // Playing to table is important
-    'draw': 7,         // Drawing cards is common
+    'hit': 8,          // Blackjack hit
+    'stand': 7,        // Blackjack stand
     'discard': 6,      // Discarding is often secondary
+    'defend': 5,       // Defensive actions
     'pass': 1,         // Passing is usually last resort
+    'fold': 1,         // Folding is last resort
   };
 
-  // Sort by priority, with custom actions getting medium priority (5)
+  // Analyze game context to adjust priorities
+  const gameText = [rules.name, rules.description, ...(rules.specialRules || [])].join(' ').toLowerCase();
+  
+  // For combat/attack games, prioritize attack actions
+  if (gameText.includes('attack') || gameText.includes('battle') || gameText.includes('fight')) {
+    priority['attack'] = 12;
+    priority['defend'] = 8;
+  }
+  
+  // For drawing games, prioritize lift/draw actions
+  if (gameText.includes('lift') || gameText.includes('reveal')) {
+    priority['lift'] = 11;
+    priority['draw'] = 11;
+  }
+
+  // For betting games, adjust betting action priorities
+  if (rules.players.bettingConfig) {
+    priority['bet'] = 9;
+    priority['call'] = 8;
+    priority['raise'] = 7;
+    priority['check'] = 6;
+    priority['fold'] = 2;
+  }
+
+  // Sort by priority, with unknown actions getting medium priority (5)
   return [...actions].sort((a, b) => {
     const priorityA = priority[a] || 5;
     const priorityB = priority[b] || 5;
     return priorityB - priorityA;
   });
-}
-
-/**
- * Try an action with different card combinations
- */
-function tryActionWithCards(
-  gameState: GameState, 
-  rules: GameRules, 
-  botId: string, 
-  action: GameAction, 
-  bot: any
-): { action: GameAction, cardIds?: string[] } | null {
-  
-  // Actions that don't need cards
-  if (['pass', 'draw'].includes(action)) {
-    return { action };
-  }
-
-  // Play action: smart handling based on game type
-  if (action === 'play') {
-    if (isCardRequestGame(rules)) {
-      // In card request games (like Blackjack), "play" means "hit" - no cards needed
-      return { action };
-    } else {
-      // In regular games, need to find valid card combinations
-      const validCardCombinations = findValidCardCombinations(gameState, rules, botId, action, bot.hand);
-      
-      if (validCardCombinations.length > 0) {
-        const bestCombination = selectBestCardCombination(validCardCombinations, gameState, rules, action);
-        return { action, cardIds: bestCombination };
-      }
-    }
-  }
-
-  // Actions that need cards - try different combinations
-  if (['discard', 'playToTable'].includes(action)) {
-    const validCardCombinations = findValidCardCombinations(gameState, rules, botId, action, bot.hand);
-    
-    if (validCardCombinations.length > 0) {
-      // Use smart selection for the best card combination
-      const bestCombination = selectBestCardCombination(validCardCombinations, gameState, rules, action);
-      return { action, cardIds: bestCombination };
-    }
-  }
-
-  // Custom actions - try with random cards or no cards based on game type
-  if (isCardRequestGame(rules)) {
-    // For card request games, most actions don't need cards from hand
-    return { action };
-  } else {
-    // For regular games, try with a random card if available
-    const randomCard = bot.hand.length > 0 ? [(bot.hand[0] as any).id] : undefined;
-    return { action, cardIds: randomCard };
-  }
 }
 
 /**

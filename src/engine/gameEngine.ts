@@ -1,6 +1,7 @@
 
 import type { GameState, GameRules, Player, Card, GameAction, GameActionResult } from '../types';
 import { CardDeck, CardUtils } from './deck';
+import { AIActionTemplateEngine, type ActionTemplate } from './aiActionTemplateEngine';
 
 export class GameEngine {
 
@@ -8,6 +9,8 @@ export class GameEngine {
   private deck: CardDeck;
   private additionalDecks: CardDeck[]; // Support for multiple decks
   private blackjackMode: boolean = false;
+  private dealerId: string | null = null; // Track dealer player ID
+  private aiActionEngine?: AIActionTemplateEngine; // AI-powered custom actions
 
   constructor(rules: GameRules) {
     // Initialize primary deck
@@ -112,7 +115,7 @@ If a player description mentions "I will get X cards and others get Y", use card
     };
   }
 
-  addPlayer(name: string, type: 'human' | 'bot', avatar?: string): void {
+  addPlayer(name: string, type: 'human' | 'bot' | 'dealer', avatar?: string): void {
     if (this.state.players.length >= this.state.rules.players.max) {
       throw new Error('Maximum number of players reached');
     }
@@ -126,7 +129,28 @@ If a player description mentions "I will get X cards and others get Y", use card
       score: 0,
       position: this.state.players.length,
       avatar,
+      isDealer: type === 'dealer',
     };
+
+    // Configure dealer-specific properties
+    if (type === 'dealer') {
+      this.dealerId = player.id;
+      const dealerConfig = this.state.rules.players.dealerConfig;
+      player.dealerRules = {
+        mustHitOn: dealerConfig?.mustHitOn || 16,
+        mustStandOn: dealerConfig?.mustStandOn || 17,
+        revealsCardAt: dealerConfig?.revealsCardAt || 'end',
+        playsAfterAllPlayers: dealerConfig?.playsAfterAllPlayers !== false,
+      };
+    }
+
+    // Initialize chips for betting games
+    const bettingConfig = this.state.rules.players.bettingConfig;
+    if (bettingConfig && type !== 'dealer') {
+      player.chips = bettingConfig.initialChips;
+      player.currentBet = 0;
+      player.status = 'active';
+    }
 
     this.state.players.push(player);
     this.state.scores[player.id] = 0;
@@ -139,6 +163,16 @@ If a player description mentions "I will get X cards and others get Y", use card
   startGame(): void {
     if (this.state.players.length < this.state.rules.players.min) {
       throw new Error(`Need at least ${this.state.rules.players.min} players to start`);
+    }
+
+    // Auto-create dealer if the game requires one and none exists
+    const hasDealer = this.state.players.some(p => p.isDealer);
+    if (this.state.rules.players.requiresDealer && !hasDealer) {
+      const dealerConfig = this.state.rules.players.dealerConfig;
+      this.addPlayer(
+        dealerConfig?.name || 'Dealer', 
+        'dealer'
+      );
     }
 
     // Combine all decks if using multiple decks
@@ -293,6 +327,10 @@ If a player description mentions "I will get X cards and others get Y", use card
     if (action === 'draw') {
       return this.state.deck.length > 0;
     }
+    if (action === 'lift') {
+      // Lift is similar to draw but might have different rules
+      return this.state.deck.length > 0;
+    }
     if (action === 'play') {
       // Intelligent play action validation based on game context
       if (this.isCardRequestGame()) {
@@ -393,15 +431,20 @@ If a player description mentions "I will get X cards and others get Y", use card
         message = result.message;
       } 
       // === STANDARD ACTION HANDLING ===
-      else if (action.toLowerCase().includes('draw')) {
+      else if (action.toLowerCase().includes('draw') || action.toLowerCase().includes('lift')) {
         this.handleDrawAction(player);
-        message = `${player.name} drew a card`;
+        message = `${player.name} ${action === 'lift' ? 'lifted' : 'drew'} a card`;
       } else if (action.toLowerCase().includes('discard') && cardIds && cardIds.length === 1) {
         this.handleDiscardAction(player, cardIds[0]);
         message = `${player.name} discarded a card`;
       } else if (action.toLowerCase().includes('pass') || action.toLowerCase().includes('stand') || action.toLowerCase().includes('stay')) {
         message = `${player.name} ${this.getPassActionName()}`;
       } 
+      // === AI-GENERATED CUSTOM ACTIONS ===
+      else if (this.isAIGeneratedAction(action)) {
+        // Handle AI-generated custom actions (safe template-based approach)
+        message = this.executeAIAction(action, player, cardIds, target);
+      }
       // === UNIVERSAL HANDLING ===
       else if (cardIds && cardIds.length > 0) {
         // Remove cards from hand and add to community pile
@@ -663,8 +706,13 @@ If a player description mentions "I will get X cards and others get Y", use card
     // Set all players as inactive
     this.state.players.forEach(p => p.isActive = false);
 
-    // Move to next player
-    this.state.currentPlayerIndex = (this.state.currentPlayerIndex + 1) % this.state.players.length;
+    // For dealer games, handle special turn order
+    if (this.state.rules.players.requiresDealer) {
+      this.handleDealerTurnOrder();
+    } else {
+      // Standard turn progression
+      this.state.currentPlayerIndex = (this.state.currentPlayerIndex + 1) % this.state.players.length;
+    }
 
     // If we've gone through all players, increment turn (multiplayer)
     if (this.state.currentPlayerIndex === 0) {
@@ -681,6 +729,98 @@ If a player description mentions "I will get X cards and others get Y", use card
 
     // Set only the new current player as active
     this.state.players[this.state.currentPlayerIndex].isActive = true;
+
+    // Handle automatic dealer actions if it's dealer's turn
+    const currentPlayer = this.state.players[this.state.currentPlayerIndex];
+    if (currentPlayer.isDealer && currentPlayer.type === 'dealer') {
+      this.handleAutomaticDealerAction();
+    }
+  }
+
+  /**
+   * Handle turn order for dealer games (dealers typically go last)
+   */
+  private handleDealerTurnOrder(): void {
+    const nonDealerPlayers = this.state.players.filter(p => !p.isDealer);
+    const dealerPlayers = this.state.players.filter(p => p.isDealer);
+    
+    // If dealer should play after all players
+    const dealerConfig = this.state.rules.players.dealerConfig;
+    if (dealerConfig?.playsAfterAllPlayers !== false) {
+      // Check if all non-dealers have finished their turns
+      const allNonDealersFinished = this.checkIfAllNonDealersFinished();
+      
+      if (allNonDealersFinished && dealerPlayers.length > 0) {
+        // Switch to dealer
+        this.state.currentPlayerIndex = this.state.players.findIndex(p => p.isDealer);
+      } else {
+        // Continue with non-dealer players
+        const currentNonDealerIndex = nonDealerPlayers.findIndex(p => 
+          p.id === this.state.players[this.state.currentPlayerIndex].id
+        );
+        const nextNonDealerIndex = (currentNonDealerIndex + 1) % nonDealerPlayers.length;
+        this.state.currentPlayerIndex = this.state.players.findIndex(p => 
+          p.id === nonDealerPlayers[nextNonDealerIndex].id
+        );
+      }
+    } else {
+      // Standard turn progression including dealer
+      this.state.currentPlayerIndex = (this.state.currentPlayerIndex + 1) % this.state.players.length;
+    }
+  }
+
+  /**
+   * Check if all non-dealer players have finished their actions (e.g., busted or standing)
+   */
+  private checkIfAllNonDealersFinished(): boolean {
+    const nonDealers = this.state.players.filter(p => !p.isDealer);
+    
+    // For Blackjack-style games, check if all are busted or standing
+    if (this.blackjackMode) {
+      const busted = (this.state as any).busted || {};
+      const standing = (this.state as any).standing || {};
+      
+      return nonDealers.every(player => 
+        busted[player.id] || standing[player.id]
+      );
+    }
+    
+    // For other games, implement specific logic as needed
+    return false;
+  }
+
+  /**
+   * Handle automatic dealer actions (e.g., dealer hits/stands based on rules)
+   */
+  private handleAutomaticDealerAction(): void {
+    const dealer = this.state.players.find(p => p.isDealer);
+    if (!dealer || !dealer.dealerRules) return;
+
+    // For Blackjack-style games
+    if (this.blackjackMode) {
+      this.handleBlackjackDealerAction(dealer);
+      return;
+    }
+
+    // For other dealer games, implement specific logic
+    // This keeps the engine flexible for various dealer games
+  }
+
+  /**
+   * Handle Blackjack dealer automatic actions
+   */
+  private handleBlackjackDealerAction(dealer: Player): void {
+    const handValues = (this.state as any).handValues || {};
+    const dealerValue = handValues[dealer.id] || 0;
+    const { mustHitOn = 16, mustStandOn = 17 } = dealer.dealerRules || {};
+
+    if (dealerValue <= mustHitOn) {
+      // Dealer must hit
+      this.executeAction(dealer.id, 'play');
+    } else if (dealerValue >= mustStandOn) {
+      // Dealer must stand
+      this.executeAction(dealer.id, 'pass');
+    }
   }
 
   private checkWinCondition(): void {
@@ -1511,5 +1651,105 @@ If a player description mentions "I will get X cards and others get Y", use card
     }
     
     return validActions;
+  }
+
+  /**
+   * Initialize AI action engine with API key
+   */
+  initializeAIActions(apiKey: string): void {
+    this.aiActionEngine = new AIActionTemplateEngine(apiKey);
+    
+    // Register complex action templates for testing
+    this.registerComplexActionTemplates();
+  }
+
+  /**
+   * Register pre-built complex action templates for advanced gameplay
+   */
+  private registerComplexActionTemplates(): void {
+    if (!this.aiActionEngine) return;
+
+    // Import and register complex templates
+    import('../utils/complexTestGames').then(({ complexActionTemplates }) => {
+      for (const template of complexActionTemplates) {
+        this.aiActionEngine!.getAvailableTemplates().set(template.id, template);
+      }
+      console.log(`🎮 Registered ${complexActionTemplates.length} complex AI action templates`);
+    }).catch(error => {
+      console.warn('Failed to load complex action templates:', error);
+    });
+  }
+
+  /**
+   * Check if an action is AI-generated (using templates)
+   */
+  private isAIGeneratedAction(action: string): boolean {
+    return this.aiActionEngine?.getTemplate(action) !== undefined;
+  }
+
+  /**
+   * Execute an AI-generated action using templates
+   */
+  private executeAIAction(
+    action: string,
+    player: Player,
+    cardIds?: string[],
+    target?: string
+  ): string {
+    if (!this.aiActionEngine) {
+      throw new Error('AI Action Engine not initialized');
+    }
+
+    try {
+      return this.aiActionEngine.executeTemplateAction(
+        action,
+        this.state,
+        this.state.rules,
+        player.id,
+        {}, // parameters - could be extracted from UI or rules
+        cardIds,
+        target
+      );
+    } catch (error) {
+      throw new Error(`Failed to execute AI action ${action}: ${error}`);
+    }
+  }
+
+  /**
+   * Generate a new custom action using AI
+   */
+  async generateCustomAction(
+    actionName: string,
+    description: string,
+    apiKey?: string
+  ): Promise<ActionTemplate | null> {
+    if (!this.aiActionEngine && apiKey) {
+      this.initializeAIActions(apiKey);
+    }
+
+    if (!this.aiActionEngine) {
+      console.warn('AI Action Engine not available');
+      return null;
+    }
+
+    try {
+      return await this.aiActionEngine.generateCustomAction(
+        actionName,
+        description,
+        { state: this.state, rules: this.state.rules }
+      );
+    } catch (error) {
+      console.error('Failed to generate custom action:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get all available AI-generated actions
+   */
+  getAvailableAIActions(): string[] {
+    if (!this.aiActionEngine) return [];
+    
+    return Array.from(this.aiActionEngine.getAvailableTemplates().keys());
   }
 }

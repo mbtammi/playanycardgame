@@ -20,6 +20,34 @@ export interface GameRules {
     min: number;
     max: number;
     recommended: number;
+    /**
+     * Whether this game requires a dealer
+     */
+    requiresDealer?: boolean;
+    /**
+     * Dealer configuration for dealer games
+     */
+    dealerConfig?: {
+      isBot: boolean; // Whether dealer is AI-controlled
+      name?: string; // Custom dealer name
+      mustHitOn?: number; // Dealer hits on this value or below
+      mustStandOn?: number; // Dealer stands on this value or above
+      revealsCardAt?: 'start' | 'end' | 'never'; // When to reveal hole card
+      playsAfterAllPlayers?: boolean; // Dealer acts last
+    };
+    /**
+     * For betting/poker games
+     */
+    bettingConfig?: {
+      initialChips: number;
+      blinds?: { small: number; big: number };
+      ante?: number;
+      maxBet?: number;
+      bettingRounds?: Array<{
+        name: string;
+        actions: ('bet' | 'call' | 'raise' | 'fold' | 'check' | 'all-in')[];
+      }>;
+    };
   };
   setup: {
     cardsPerPlayer: number;
@@ -157,12 +185,37 @@ export interface GameState {
 export interface Player {
   id: string;
   name: string;
-  type: 'human' | 'bot';
+  type: 'human' | 'bot' | 'dealer';
   hand: Card[];
   isActive: boolean;
   score: number;
   position: number;
   avatar?: string;
+  /**
+   * Dealer-specific properties
+   */
+  isDealer?: boolean;
+  /**
+   * For games with dealers - whether dealer follows special rules
+   */
+  dealerRules?: {
+    mustHitOn?: number; // e.g., 16 for Blackjack
+    mustStandOn?: number; // e.g., 17 for Blackjack
+    revealsCardAt?: 'start' | 'end' | 'never'; // When dealer shows hole card
+    playsAfterAllPlayers?: boolean; // Dealer goes last
+  };
+  /**
+   * For poker-style games with chips/betting
+   */
+  chips?: number;
+  /**
+   * Current bet amount for betting games
+   */
+  currentBet?: number;
+  /**
+   * Player status in betting games
+   */
+  status?: 'active' | 'folded' | 'all-in' | 'busted';
 }
 
 export interface GameActionResult {

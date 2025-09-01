@@ -1,5 +1,7 @@
 <!-- Use this file to provide workspace-specific custom instructions to Copilot. For more details, visit https://code.visualstudio.com/docs/copilot/copilot-customization#_use-a-githubcopilotinstructionsmd-file -->
 
+Don't give me the solutions too easy. Make me work for them and explain them clearly so I understand the code we are implementing into the codebase. 
+
 # Play Any Card Game - Copilot Instructions
 
 This is an AI-powered card game creator built with React, TypeScript, and Vite. Users can define rules for any card game, and AI interprets those rules to create playable versions with animations and smart bots. There will be 1000 different games available so rely on the AI to help you create and customize your game. The AI must be a key part since the variability of the games is so large. We might want to have cards on the table in 20 different ways and our engine needs to account for all of them with AI being the coordinator in this. So there can't be much hardcoded values in this application

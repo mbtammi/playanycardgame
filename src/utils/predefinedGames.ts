@@ -1,5 +1,7 @@
 import type { PredefinedGame, GameRules } from '../types';
 import { sevensGame } from './predefinedSevens';
+import { attackHealthGame } from './testAttackGame';
+import { complexTestGames } from './complexTestGames';
 
 // Go Fish Rules
 const goFishRules: GameRules = {
@@ -93,11 +95,20 @@ const crazy8sRules: GameRules = {
 const blackjackRules: GameRules = {
   id: 'blackjack',
   name: 'Blackjack',
-  description: 'Get as close to 21 as possible without going over.',
+  description: 'Classic casino card game where you try to get as close to 21 as possible without going over.',
   players: {
     min: 1,
     max: 6,
     recommended: 3,
+    requiresDealer: true,
+    dealerConfig: {
+      isBot: true,
+      name: 'Dealer',
+      mustHitOn: 16,
+      mustStandOn: 17,
+      revealsCardAt: 'end',
+      playsAfterAllPlayers: true,
+    },
   },
   setup: {
     cardsPerPlayer: 2,
@@ -122,7 +133,7 @@ const blackjackRules: GameRules = {
   winConditions: [
     {
       type: 'highest_score',
-      description: 'Closest to 21 without going over',
+      description: 'Closest to 21 without going over, or dealer busts',
       target: 21,
     },
   ],
@@ -131,6 +142,8 @@ const blackjackRules: GameRules = {
     'Face cards (J, Q, K) are worth 10',
     'If your hand exceeds 21, you bust and lose',
     'Blackjack (21 with first 2 cards) beats regular 21',
+    'Dealer hits on 16 or below, stands on 17 or above',
+    'Dealer plays after all players finish',
   ],
 };
 
@@ -311,6 +324,60 @@ const freshStartRules: GameRules = {
   ],
 };
 
+// Simple Texas Hold'em Poker Rules (for testing betting mechanics)
+const texasHoldemRules: GameRules = {
+  id: 'texas-holdem',
+  name: 'Texas Hold\'em',
+  description: 'The most popular poker variant with community cards and betting rounds.',
+  players: {
+    min: 2,
+    max: 8,
+    recommended: 6,
+    bettingConfig: {
+      initialChips: 1000,
+      blinds: { small: 10, big: 20 },
+      maxBet: 500,
+      bettingRounds: [
+        { name: 'preflop', actions: ['bet', 'call', 'raise', 'fold', 'check'] },
+        { name: 'flop', actions: ['bet', 'call', 'raise', 'fold', 'check'] },
+        { name: 'turn', actions: ['bet', 'call', 'raise', 'fold', 'check'] },
+        { name: 'river', actions: ['bet', 'call', 'raise', 'fold', 'check'] },
+      ],
+    },
+  },
+  setup: {
+    cardsPerPlayer: 2,
+    deckSize: 52,
+  },
+  objective: {
+    type: 'highest_score',
+    description: 'Make the best poker hand using your hole cards and community cards',
+  },
+  turnStructure: {
+    order: 'clockwise',
+    phases: [
+      { name: 'preflop', required: true, actions: ['bet', 'call', 'raise', 'fold', 'check'] },
+      { name: 'flop', required: true, actions: ['bet', 'call', 'raise', 'fold', 'check'] },
+      { name: 'turn', required: true, actions: ['bet', 'call', 'raise', 'fold', 'check'] },
+      { name: 'river', required: true, actions: ['bet', 'call', 'raise', 'fold', 'check'] },
+    ],
+  },
+  actions: ['bet', 'call', 'raise', 'fold', 'check'],
+  winConditions: [
+    {
+      type: 'highest_score',
+      description: 'Best poker hand wins the pot',
+    },
+  ],
+  specialRules: [
+    'Each player gets 2 hole cards',
+    '5 community cards are dealt in stages: flop (3), turn (1), river (1)',
+    'Players make the best 5-card hand from their 2 hole cards + 5 community cards',
+    'Betting rounds occur before flop, after flop, after turn, and after river',
+    'Standard poker hand rankings apply',
+  ],
+};
+
 export const predefinedGames: PredefinedGame[] = [
   {
     id: 'draw-black-card',
@@ -385,6 +452,59 @@ export const predefinedGames: PredefinedGame[] = [
     playerCount: '4 players',
     duration: '20-30 min',
     rules: freshStartRules,
+    featured: true,
+  },
+  {
+    id: 'texas-holdem',
+    name: 'Texas Hold\'em',
+    description: 'Classic poker with community cards and betting',
+    thumbnail: '🃏',
+    difficulty: 'hard',
+    playerCount: '2-8 players',
+    duration: '30-60 min',
+    rules: texasHoldemRules,
+  },
+  {
+    id: 'attack-health',
+    name: 'Attack & Health Game',
+    description: 'Combat game with health and attack cards - perfect for testing bot resilience',
+    thumbnail: '⚔️',
+    difficulty: 'medium',
+    playerCount: '2-4 players',
+    duration: '10-20 min',
+    rules: attackHealthGame,
+  },
+  {
+    id: 'card-thief',
+    name: 'Card Thief: Master of Deception',
+    description: 'Strategic game with AI-powered steal, swap, and manipulation actions. Features complex multi-effect combinations!',
+    thumbnail: '🥷',
+    difficulty: 'hard',
+    playerCount: '2-4 players',
+    duration: '15-25 min',
+    rules: complexTestGames[0],
+    featured: true,
+  },
+  {
+    id: 'chaos-wars',
+    name: 'Chaos Wars: Battlefield of Cards',
+    description: 'Intense card battle where every action creates chaos! Chain multiple effects for devastating combos.',
+    thumbnail: '💥',
+    difficulty: 'hard',
+    playerCount: '2-4 players', 
+    duration: '20-30 min',
+    rules: complexTestGames[1],
+    featured: true,
+  },
+  {
+    id: 'memory-palace-deluxe',
+    name: 'Memory Palace Deluxe: Mind Games',
+    description: 'Sophisticated memory game with AI-powered peek, reveal, and memory manipulation actions.',
+    thumbnail: '🧠',
+    difficulty: 'hard',
+    playerCount: '2-4 players',
+    duration: '25-35 min', 
+    rules: complexTestGames[2],
     featured: true,
   },
   sevensGame,
