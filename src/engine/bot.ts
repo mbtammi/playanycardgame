@@ -48,7 +48,7 @@ function getDealerAction(gameState: GameState, rules: GameRules, botId: string, 
   if (isCardRequestGame(rules)) {
     const handValues = (gameState as any).handValues || {};
     const dealerValue = handValues[botId] || 0;
-    const { mustHitOn = 16, mustStandOn = 17 } = dealer.dealerRules || {};
+    const { mustHitOn = 16 } = dealer.dealerRules || {};
 
     if (dealerValue <= mustHitOn) {
       return { action: 'play' }; // Hit
@@ -107,41 +107,56 @@ function getBettingGameAction(gameState: GameState, rules: GameRules, botId: str
 function getEmergencyAction(gameState: GameState, rules: GameRules, botId: string, bot: Player): { action: GameAction, cardIds?: string[] } {
   console.log(`🚨 Emergency action for bot ${bot.name}`);
 
-  // Try the most basic actions first - in order of safety
-  const emergencyActions = ['pass', 'draw', 'play', 'discard', 'hit', 'stand'];
+  // CRITICAL ENHANCEMENT: Try the most safe actions first - in order of safety
+  // 1. Actions that NEVER fail and don't require validation
+  const guaranteedSafeActions = ['draw', 'pass', 'skip'];
   
-  for (const action of emergencyActions) {
-    // Only try actions that are actually in the game rules
-    if (!rules.actions.includes(action)) {
-      continue;
+  for (const action of guaranteedSafeActions) {
+    if (rules.actions.includes(action)) {
+      // Draw action - ultimate fallback for stuck situations
+      if (action === 'draw') {
+        console.log(`🚑 Emergency: DRAW (guaranteed unstuck action)`);
+        return { action: 'draw' };
+      }
+      // Pass/skip actions
+      if (action === 'pass' || action === 'skip') {
+        console.log(`🚑 Emergency: ${action.toUpperCase()} (guaranteed safe)`);
+        return { action: action as GameAction };
+      }
     }
+  }
+
+  // 2. Try other actions that are in the game rules
+  const otherActions = ['stand', 'stay', 'fold', 'check'];
+  for (const action of otherActions) {
+    if (rules.actions.includes(action)) {
+      try {
+        console.log(`🚑 Emergency: ${action.toUpperCase()} (rules-based)`);
+        return { action: action as GameAction };
+      } catch (error) {
+        continue;
+      }
+    }
+  }
+
+  // 3. Try actions that might need cards, but with safety checks
+  const cardActions = ['play', 'discard', 'hit'];
+  for (const action of cardActions) {
+    if (!rules.actions.includes(action)) continue;
 
     try {
-      // Actions that never need cards
-      if (['pass', 'stand'].includes(action)) {
-        console.log(`🆘 Emergency: ${action} (guaranteed safe)`);
-        return { action };
+      // Try without cards first (some games allow this)
+      if (wouldActionBeValidSafe(gameState, rules, botId, action as GameAction, [])) {
+        console.log(`🚑 Emergency: ${action.toUpperCase()} (no cards required)`);
+        return { action: action as GameAction };
       }
       
-      // Draw action - only if deck has cards
-      if (action === 'draw' && gameState.deck.length > 0) {
-        console.log(`🆘 Emergency: ${action} (deck available)`);
-        return { action };
-      }
-      
-      // Actions that might need cards
-      if (['play', 'discard', 'hit'].includes(action)) {
-        // Try without cards first (some games allow this)
-        try {
-          console.log(`🆘 Emergency: ${action} (no cards)`);
-          return { action };
-        } catch {
-          // Try with first available card if bot has cards
-          if (bot.hand.length > 0) {
-            const firstCard = bot.hand[0];
-            console.log(`🆘 Emergency: ${action} with first card ${firstCard.rank}${firstCard.suit}`);
-            return { action, cardIds: [firstCard.id] };
-          }
+      // Try with first available card if bot has cards
+      if (bot.hand.length > 0) {
+        const firstCard = bot.hand[0];
+        if (wouldActionBeValidSafe(gameState, rules, botId, action as GameAction, [firstCard.id])) {
+          console.log(`🚑 Emergency: ${action.toUpperCase()} with first card ${firstCard.rank}${firstCard.suit}`);
+          return { action: action as GameAction, cardIds: [firstCard.id] };
         }
       }
     } catch (error) {
@@ -150,9 +165,10 @@ function getEmergencyAction(gameState: GameState, rules: GameRules, botId: strin
     }
   }
 
-  // Final ultimate fallback - this should NEVER fail
-  console.log(`🆘 ULTIMATE EMERGENCY: pass (no validation)`);
-  return { action: 'pass' };
+  // ABSOLUTE FINAL FALLBACK: Force a draw action (this bypasses all validation)
+  // This is the ultimate unstuck mechanism - every game should allow drawing a card
+  console.log(`🆘 ULTIMATE EMERGENCY: FORCED DRAW (bypassing all validation)`);
+  return { action: 'draw' };
 }
 
 /**
@@ -360,6 +376,17 @@ function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: stri
   const guaranteedAction = { action: 'pass' as GameAction };
 
   try {
+    // ENHANCED DEBUGGING: Get detailed game state info
+    console.log(`🤖 Bot ${bot.name} analyzing game state:`, {
+      phase: gameState.currentPhase || 'playing',
+      handSize: bot.hand.length,
+      availableActions: rules.actions,
+      currentPlayer: gameState.currentPlayerIndex,
+      gameStatus: gameState.gameStatus,
+      tableCards: gameState.communityCards?.length || 0,
+      deckSize: gameState.deck.length
+    });
+
     // Get all valid actions from the game engine (this uses the schema)
     const validActions = getValidActionsForPlayer(gameState, rules, botId);
     console.log(`🎯 Valid actions for bot: [${validActions.join(', ')}]`);
@@ -369,8 +396,9 @@ function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: stri
       return getEmergencyAction(gameState, rules, botId, bot);
     }
 
-    // Try actions in priority order with extensive fallback logic
+    // ENHANCED: Try actions in priority order with extensive fallback logic
     const prioritizedActions = prioritizeActions(validActions, gameState, rules);
+    console.log(`📋 Prioritized actions: [${prioritizedActions.join(', ')}]`);
     
     for (let i = 0; i < prioritizedActions.length; i++) {
       const action = prioritizedActions[i];
@@ -381,6 +409,8 @@ function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: stri
         if (result) {
           console.log(`✅ Bot ${bot.name} chose: ${result.action}${result.cardIds ? ` with cards [${result.cardIds.join(', ')}]` : ''}`);
           return result;
+        } else {
+          console.log(`❌ Action ${action} failed validation`);
         }
       } catch (error) {
         console.warn(`⚠️ Error trying action ${action}:`, error);
@@ -388,31 +418,58 @@ function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: stri
       }
     }
 
-    // Fast fallback: try the most basic actions
-    console.warn(`🔄 Bot ${bot.name} trying fast fallback...`);
-    const basicActions = ['pass', 'draw', 'play'];
-    for (const action of basicActions) {
-      if (validActions.includes(action)) {
+    // ENHANCED: Multiple fallback levels to prevent getting stuck
+    console.warn(`🔄 Bot ${bot.name} trying enhanced fallback system...`);
+    
+    // Level 1: Try most basic actions that never require cards
+    const safeActions = ['draw', 'pass', 'skip', 'stand'];
+    for (const action of safeActions) {
+      if (rules.actions.includes(action)) {
         try {
-          if (action === 'pass' || action === 'draw') {
-            return { action };
+          console.log(`🔄 Level 1 fallback: trying ${action}`);
+          // For draw, make sure it's really safe
+          if (action === 'draw') {
+            console.log(`🔄 Draw action - deck has ${gameState.deck.length} cards`);
+            return { action: 'draw' as GameAction };
           }
-          if (action === 'play' && bot.hand.length > 0) {
-            return { action, cardIds: [bot.hand[0].id] };
-          }
-          return { action };
+          return { action: action as GameAction };
         } catch (error) {
-          console.warn(`⚠️ Error in fast fallback for ${action}:`, error);
+          console.warn(`⚠️ Level 1 fallback ${action} failed:`, error);
         }
       }
     }
 
+    // Level 2: Try actions that might work with any card
+    const cardActions = ['play', 'discard'];
+    for (const action of cardActions) {
+      if (rules.actions.includes(action) && bot.hand.length > 0) {
+        try {
+          console.log(`🔄 Level 2 fallback: trying ${action} with any card`);
+          // Try with each card in hand
+          for (const card of bot.hand) {
+            if (wouldActionBeValidSafe(gameState, rules, botId, action as GameAction, [card.id])) {
+              console.log(`🔄 Level 2 fallback: ${action} with card ${card.rank}${card.suit}`);
+              return { action: action as GameAction, cardIds: [card.id] };
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ Level 2 fallback ${action} failed:`, error);
+        }
+      }
+    }
+
+    // Level 3: Emergency action system
+    console.warn(`🚨 Bot ${bot.name} activating emergency action system`);
+    return getEmergencyAction(gameState, rules, botId, bot);
+
   } catch (error) {
     console.error(`🚨 Critical error in bot logic for ${bot.name}:`, error);
+    // Even if everything fails, use the emergency system
+    return getEmergencyAction(gameState, rules, botId, bot);
   }
 
   // Ultimate emergency: guaranteed to work
-  console.error(`🚨 Bot ${bot.name} using ultimate emergency action`);
+  console.error(`🚨 Bot ${botId} using ultimate emergency action`);
   return guaranteedAction;
 }
 

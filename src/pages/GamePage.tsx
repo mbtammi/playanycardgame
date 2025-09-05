@@ -16,7 +16,8 @@ const GamePage = () => {
   const { setCurrentPage, updateGameState } = useAppStore();
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [message, setMessage] = useState<React.ReactNode>(null);
-  const [isEngineInitialized, setIsEngineInitialized] = useState(false);
+  // Track engine initialized boolean (simple ref instead of state to avoid rerenders)
+  const engineInitializedRef = useRef(false);
   const [botThinking, setBotThinking] = useState(false);
   const [instantWin, setInstantWin] = useState<{
     show: boolean;
@@ -24,87 +25,80 @@ const GamePage = () => {
     card?: { rank: string; suit: string };
     message: string;
   }>({ show: false, isWin: false, message: '' });
+  // Track which game id we've already initialized to prevent re-init loops
+  const initializedForIdRef = useRef<string | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
-  // Only initialize engine when game ID or rules change (not every state update)
-  useEffect(() => {
-    if (currentGame && !isEngineInitialized) {
-      engineRef.current = new GameEngine(currentGame.rules);
-      currentGame.players.forEach(p => {
-        engineRef.current?.addPlayer(p.name, p.type, p.avatar);
-      });
-      // Start game if not started
-      const state = engineRef.current.getGameState();
-      if (state.gameStatus !== 'active') {
-        try {
-          engineRef.current.startGame();
-        } catch {}
-      }
-      // Only update if this is the first initialization
-      updateGameState(engineRef.current.getGameState());
-      setIsEngineInitialized(true);
-    }
-    
-    // Reset when game changes
-    if (!currentGame) {
-      setIsEngineInitialized(false);
-      engineRef.current = null;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentGame?.id]);
-
-  // Helper: get current player
+  // Helper to get current player
   const getCurrentPlayer = () => {
     if (!currentGame) return null;
-    return currentGame.players[currentGame.currentPlayerIndex];
+    return currentGame.players[currentGame.currentPlayerIndex] || null;
   };
 
-  // Bot turn effect: triggers after every turn change (currentPlayerIndex)
+  // Engine initialization: decoupled from ephemeral wrapper game id (uses rules.id)
+  useEffect(() => {
+    const rulesKey = currentGame?.rules?.id;
+    console.log('🔧 Engine init effect', { rulesKey, initializedFor: initializedForIdRef.current, hasEngine: !!engineRef.current });
+    if (!currentGame || !rulesKey) {
+      engineRef.current = null;
+      initializedForIdRef.current = null;
+      engineInitializedRef.current = false;
+      return;
+    }
+    if (engineRef.current && initializedForIdRef.current === rulesKey) return; // already initialized for these rules
+
+    engineRef.current = new GameEngine(currentGame.rules);
+    currentGame.players.forEach(p => engineRef.current?.addPlayer(p.name, p.type, p.avatar));
+    try { engineRef.current.startGame(); } catch (e) { console.error('startGame failed', e); }
+    const started = engineRef.current.getGameState();
+    // Keep original outer game id stable
+    (started as any).id = currentGame.id;
+    console.log('✅ Engine started', { hands: started.players.map(p => p.hand.length), status: started.gameStatus, id: started.id });
+    updateGameState(started);
+    initializedForIdRef.current = rulesKey;
+    engineInitializedRef.current = true;
+  }, [currentGame?.rules?.id]);
+
+  // Allow manual restart (used when rules the same but want fresh deal)
+  const restartGame = () => {
+    if (!currentGame) return;
+    initializedForIdRef.current = null;
+    engineRef.current = null;
+    engineInitializedRef.current = false;
+    // Trigger effect by calling updateGameState with a noop so dependency unchanged but we re-run manually
+    const rulesKey = currentGame.rules.id;
+    console.log('🔄 Manual restart requested');
+    engineRef.current = new GameEngine(currentGame.rules);
+    currentGame.players.forEach(p => engineRef.current?.addPlayer(p.name, p.type, p.avatar));
+    try { engineRef.current.startGame(); } catch (e) { console.error('startGame failed', e); }
+    const started = engineRef.current.getGameState();
+    (started as any).id = currentGame.id;
+    updateGameState(started);
+    initializedForIdRef.current = rulesKey;
+    engineInitializedRef.current = true;
+  };
+    
+  // Bot turn effect
   useEffect(() => {
     if (!currentGame || !engineRef.current) return;
-    const current = getCurrentPlayer();
-    if (!current || current.type !== 'bot' || currentGame.gameStatus !== 'active') return;
-    
-    // Show bot thinking indicator
+    const cp = getCurrentPlayer();
+    if (!cp || cp.type !== 'bot' || currentGame.gameStatus !== 'active') return;
+    console.log(`🤖 Bot turn detected for ${cp.name} (${cp.id})`);
     setBotThinking(true);
-    
-    // Add timeout protection to prevent infinite bot loops
     const timeout = setTimeout(() => {
       try {
-        console.log(`🤖 Bot ${current.name} is making a move...`);
-        const startTime = Date.now();
-        
-        const { action, cardIds } = getBotAction(currentGame, currentGame.rules, current.id);
-        
-        const elapsed = Date.now() - startTime;
-        console.log(`🤖 Bot decision took ${elapsed}ms: ${action}${cardIds ? ` with cards [${cardIds.join(', ')}]` : ''}`);
-        
+        const { action, cardIds } = getBotAction(currentGame, currentGame.rules, cp.id);
         if (engineRef.current) {
-          const result = engineRef.current.executeAction(current.id, action, cardIds);
-          if (result.success) {
-            console.log(`✅ Bot action successful: ${result.message}`);
-          } else {
-            console.warn(`⚠️ Bot action failed: ${result.message}`);
-          }
+          engineRef.current.executeAction(cp.id, action, cardIds);
           updateGameState(engineRef.current.getGameState());
         }
-      } catch (error) {
-        console.error('🚨 Bot action error:', error);
-        // Emergency fallback: force pass action
-        if (engineRef.current) {
-          engineRef.current.executeAction(current.id, 'pass');
-          updateGameState(engineRef.current.getGameState());
-        }
+      } catch (e) {
+        console.error('Bot move error', e);
       } finally {
         setBotThinking(false);
       }
-    }, 1500); // Timeout after 1.5 seconds
-    
-    return () => {
-      clearTimeout(timeout);
-      setBotThinking(false);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, 800);
+    return () => clearTimeout(timeout);
   }, [currentGame?.currentPlayerIndex, currentGame?.gameStatus]);
 
   // Blackjack helpers
@@ -116,7 +110,21 @@ const GamePage = () => {
   const isUserTurn = () => {
     if (!currentGame) return false;
     const current = getCurrentPlayer();
-    return current && current.type === 'human' && current.id === 'player-1';
+    const result = current && current.type === 'human' && current.id === 'player-1';
+    
+    // Debug logging for action button visibility issues
+    if (!result && current) {
+      console.log(`❌ isUserTurn() = false. Current player:`, {
+        id: current.id,
+        name: current.name,
+        type: current.type,
+        expectedId: 'player-1'
+      });
+    } else if (result) {
+      console.log(`✅ isUserTurn() = true. Current player: ${current?.name} (${current?.id})`);
+    }
+    
+    return result;
   };
 
   const handleBack = () => {
@@ -562,39 +570,20 @@ const GamePage = () => {
                 }}
               >
                 {/* Community Cards/Table Area - Enhanced with Dynamic Layout */}
-                {currentGame.communityCards && currentGame.communityCards.length > 0 ? (
+                {/* Show separate Center Pile only if no structured tableZones present */}
+                {(!((currentGame as any).tableZones && (currentGame as any).tableZones.length)) && currentGame.communityCards && currentGame.communityCards.length > 0 && (
                   <div className="flex flex-col items-center mb-12">
-                    <div className="font-semibold text-gray-700 mb-4 text-lg">Table</div>
-                    <div className="bg-green-100 rounded-xl p-8 min-w-96 min-h-40">
-                      <div className="grid grid-cols-4 gap-6 justify-items-center">
-                        {['hearts', 'diamonds', 'clubs', 'spades'].map(suit => {
-                          const suitCards = currentGame.communityCards.filter(card => card.suit === suit);
-                          return (
-                            <div key={suit} className="flex flex-col items-center">
-                              <div className="text-sm font-medium text-gray-600 mb-2 capitalize">{suit}</div>
-                              <div className="flex flex-wrap justify-center gap-1">
-                                {suitCards.length > 0 ? (
-                                  <CardStack 
-                                    cards={suitCards.sort((a, b) => {
-                                      const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-                                      return ranks.indexOf(a.rank) - ranks.indexOf(b.rank);
-                                    })}
-                                    stackType="messy"
-                                    maxVisible={10}
-                                  />
-                                ) : (
-                                  <div className="card-stack-empty">
-                                    Empty
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                    <div className="font-semibold text-gray-700 mb-4 text-lg">Center Pile</div>
+                    <div className="bg-green-100 rounded-xl p-6 min-w-60 min-h-32 flex flex-col items-center justify-center">
+                      <CardStack 
+                        cards={currentGame.communityCards.slice(-15)}
+                        stackType="messy"
+                        maxVisible={12}
+                      />
+                      <div className="text-xs mt-2 text-gray-600">{currentGame.communityCards.length} card(s) in pile</div>
                     </div>
                   </div>
-                ) : null}
+                )}
 
                 {/* Card stack (discard pile) for draw-and-reveal games */}
                 {currentGame.discardPile && currentGame.discardPile.length > 0 && !currentGame.communityCards?.length && (
@@ -610,9 +599,16 @@ const GamePage = () => {
 
                 {/* Action buttons for current player (only show for human's turn) */}
                 <div className="flex flex-wrap gap-4 justify-center mb-6">
-              {engineRef.current && isUserTurn() && currentGame.gameStatus === 'active' && (
+              {(() => {
+                const hasEngine = !!engineRef.current;
+                const userTurn = isUserTurn();
+                // Show buttons if engine exists & it's your turn, even if state still briefly 'waiting'
+                const show = hasEngine && userTurn;
+                console.log('🎮 Action buttons condition check:', { hasEngine, userTurn, status: currentGame.gameStatus, show });
+                return show;
+              })() && (
                 <>
-                  {engineRef.current.getValidActionsForCurrentPlayer().map(action => {
+                  {engineRef.current?.getValidActionsForCurrentPlayer().map(action => {
                     switch (action) {
                       case 'draw':
                         return (
@@ -735,25 +731,9 @@ const GamePage = () => {
                   )}
                   
                   {/* Play Again Button */}
-                  <motion.button
+          <motion.button
                     onClick={() => {
-                      // Restart the game by reinitializing the engine
-                      if (currentGame && engineRef.current) {
-                        try {
-                          // Create a fresh engine instance
-                          engineRef.current = new GameEngine(currentGame.rules);
-                          currentGame.players.forEach(p => {
-                            engineRef.current?.addPlayer(p.name, p.type, p.avatar);
-                          });
-                          engineRef.current.startGame();
-                          updateGameState(engineRef.current.getGameState());
-                          setMessage(null);
-                          setSelectedCards([]);
-                        } catch (error) {
-                          // If restart fails, go back to examples
-                          handleBack();
-                        }
-                      }
+            restartGame();
                     }}
                     className="btn-primary mt-6 px-8 py-3 text-lg font-semibold"
                     whileHover={{ scale: 1.02 }}
@@ -777,13 +757,13 @@ const GamePage = () => {
 
             {/* Deck and discard info */}
             <div className="flex flex-row gap-8 justify-center mt-4">
-              <div className="bg-white rounded-lg shadow ">
+              <div className="bg-white rounded-lg shadow px-4 py-2">
                 <span className="font-bold DeckDiscard">Deck:</span> {currentGame.deck.length} cards
-                </div>
-                <div className="bg-white rounded-lg shadow ">
-                  <span className="font-bold DeckDiscard">Discard:</span> {currentGame.discardPile.length} cards
-                </div>
               </div>
+              <div className="bg-white rounded-lg shadow px-4 py-2">
+                <span className="font-bold DeckDiscard">Discard:</span> {currentGame.discardPile.length} cards
+              </div>
+            </div>
             </GameTable>
           </div>
         </motion.div>

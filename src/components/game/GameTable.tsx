@@ -203,17 +203,17 @@ const GameTable: React.FC<GameTableProps> = ({
     // Special rendering for different zone types
     switch (zone.type) {
       case 'grid':
-        return renderGridZone(zone, cards, metadata);
+        return renderGridZone(zone, cards);
       case 'center-area':
-        return renderCenterAreaZone(zone, cards, metadata);
+        return renderCenterAreaZone(zone, cards);
       case 'sequence':
-        return renderSequenceZone(zone, cards, metadata);
+        return renderSequenceZone(zone, cards);
       case 'pile':
-        return renderPileZone(zone, cards, metadata);
+        return renderPileZone(zone, cards);
       case 'player-zone':
-        return renderPlayerZone(zone, cards, metadata);
+        return renderPlayerZone(zone, cards);
       default:
-        return renderDefaultZone(zone, cards, metadata);
+        return renderDefaultZone(zone, cards);
     }
   };
 
@@ -246,8 +246,8 @@ const GameTable: React.FC<GameTableProps> = ({
   /**
    * Render grid zone (for memory games, etc.)
    */
-  const renderGridZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[], metadata: NonNullable<GameTableProps['tableData']>['metadata']) => {
-    const { rows = 4, cols = 4 } = zone.gridSize || {};
+  const renderGridZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[]) => {
+    const { cols = 4 } = zone.gridSize || {};
     
     return (
       <div 
@@ -259,7 +259,7 @@ const GameTable: React.FC<GameTableProps> = ({
           padding: '1rem' 
         }}
       >
-        {cards.map((card, index) => {
+  {cards.map((card) => {
           const isFaceDown = zone.faceDown !== undefined ? zone.faceDown : !card.faceUp;
           
           return (
@@ -287,7 +287,7 @@ const GameTable: React.FC<GameTableProps> = ({
   /**
    * Render center area zone (for building sequences, etc.)
    */
-  const renderCenterAreaZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[], metadata: NonNullable<GameTableProps['tableData']>['metadata']) => {
+  const renderCenterAreaZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[]) => {
     if (cards.length === 0) {
       return (
         <div className="empty-center-area">
@@ -336,7 +336,7 @@ const GameTable: React.FC<GameTableProps> = ({
   /**
    * Render sequence zone
    */
-  const renderSequenceZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[], metadata: NonNullable<GameTableProps['tableData']>['metadata']) => {
+  const renderSequenceZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[]) => {
     return (
       <div className="sequence-cards">
         {cards.map((card, index) => (
@@ -362,25 +362,34 @@ const GameTable: React.FC<GameTableProps> = ({
   /**
    * Render pile zone (stacked cards)
    */
-  const renderPileZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[], metadata: NonNullable<GameTableProps['tableData']>['metadata']) => {
+  const renderPileZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[]) => {
+    // Compact overlapping stack horizontally; show only last 6 for performance
+    const visible = cards.slice(-6);
     return (
-      <div className="pile-cards">
-        {cards.map((card, index) => (
-          <CardComponent
-            key={card.id}
-            suit={card.suit}
-            rank={card.rank}
-            faceDown={zone.faceDown !== undefined ? zone.faceDown : !card.faceUp}
-            selected={card.selected}
-            onClick={onTableCardClick ? () => onTableCardClick(card.id, zone.id) : undefined}
-            style={{
-              position: 'relative',
-              marginTop: index > 0 ? '-60px' : '0',
-              zIndex: index + 1,
-              cursor: onTableCardClick ? 'pointer' : 'default',
-            }}
-          />
-        ))}
+      <div className="pile-cards" style={{ position: 'relative', display: 'flex', alignItems: 'center', minHeight: '100px' }}>
+        {visible.map((card, index) => {
+          const baseIndex = cards.length - visible.length;
+          return (
+            <CardComponent
+              key={card.id}
+              suit={card.suit}
+              rank={card.rank}
+              faceDown={zone.faceDown !== undefined ? zone.faceDown : !card.faceUp}
+              selected={card.selected}
+              onClick={onTableCardClick ? () => onTableCardClick(card.id, zone.id) : undefined}
+              style={{
+                position: 'relative',
+                marginLeft: index > 0 ? '-48px' : '0',
+                zIndex: baseIndex + index + 1,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                cursor: onTableCardClick ? 'pointer' : 'default',
+              }}
+            />
+          );
+        })}
+        {cards.length > visible.length && (
+          <div style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#065f46', fontWeight: 600 }}>+{cards.length - visible.length}</div>
+        )}
       </div>
     );
   };
@@ -388,7 +397,7 @@ const GameTable: React.FC<GameTableProps> = ({
   /**
    * Render player zone (dedicated player area)
    */
-  const renderPlayerZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[], metadata: NonNullable<GameTableProps['tableData']>['metadata']) => {
+  const renderPlayerZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[]) => {
     return (
       <div className="player-zone-cards">
         <h4>Player {(zone.playerIndex || 0) + 1}</h4>
@@ -417,10 +426,40 @@ const GameTable: React.FC<GameTableProps> = ({
   /**
    * Render default zone (fallback)
    */
-  const renderDefaultZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[], metadata: NonNullable<GameTableProps['tableData']>['metadata']) => {
+  const renderDefaultZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[]) => {
+    // If this looks like a draw/discard pile (id hints), use stacked rendering
+    const isDeckLike = /deck/i.test(zone.id) || zone.type === 'deck';
+    const isDiscardLike = /discard|waste|burn/i.test(zone.id) || zone.type === 'discard';
+    if (isDeckLike || isDiscardLike) {
+      const visible = cards.slice(-4);
+      return (
+        <div className={`default-zone-cards ${isDeckLike ? 'stack-deck' : 'stack-discard'}`} style={{ position: 'relative', display: 'flex' }}>
+          {visible.map((card, index) => (
+            <CardComponent
+              key={card.id}
+              suit={card.suit}
+              rank={card.rank}
+              faceDown={isDeckLike ? true : (zone.faceDown !== undefined ? zone.faceDown : !card.faceUp)}
+              selected={card.selected}
+              onClick={onTableCardClick ? () => onTableCardClick(card.id, zone.id) : undefined}
+              style={{
+                position: 'relative',
+                marginLeft: index > 0 ? '-52px' : '0',
+                zIndex: index + 1,
+                cursor: onTableCardClick ? 'pointer' : 'default',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+              }}
+            />
+          ))}
+          {cards.length > visible.length && (
+            <div style={{ marginLeft: '8px', fontSize: '0.75rem', color: '#065f46', fontWeight: 600 }}>({cards.length})</div>
+          )}
+        </div>
+      );
+    }
     return (
-      <div className="default-zone-cards">
-        {cards.map((card, index) => (
+      <div className="default-zone-cards" style={{ display: 'flex', flexWrap: 'wrap' }}>
+        {cards.map((card) => (
           <CardComponent
             key={card.id}
             suit={card.suit}
@@ -430,7 +469,8 @@ const GameTable: React.FC<GameTableProps> = ({
             onClick={onTableCardClick ? () => onTableCardClick(card.id, zone.id) : undefined}
             style={{
               position: 'relative',
-              marginRight: index < cards.length - 1 ? '10px' : '0',
+              marginRight: '6px',
+              marginBottom: '6px',
               cursor: onTableCardClick ? 'pointer' : 'default',
             }}
           />
@@ -443,16 +483,16 @@ const GameTable: React.FC<GameTableProps> = ({
    * Infer table layout from game rules when no AI analysis is available
    */
   const renderInferredTable = (rules: GameRules) => {
-    const { name, description, specialRules } = rules;
+  const { name, description } = rules;
     const lowerName = name.toLowerCase();
     const lowerDesc = description?.toLowerCase() || '';
-    const lowerSpecial = specialRules?.join(' ').toLowerCase() || '';
+  // const lowerSpecial = specialRules?.join(' ').toLowerCase() || '';
     
     // AI-driven rule inference
     const hasMemoryElements = lowerName.includes('memory') || lowerDesc.includes('flip') || lowerDesc.includes('match');
     const hasGridLayout = lowerDesc.includes('grid') || lowerDesc.includes('4x4') || lowerDesc.includes('3x3');
     const hasCenterArea = lowerDesc.includes('center') || lowerDesc.includes('sequence');
-    const hasFlipping = lowerDesc.includes('flip') || lowerDesc.includes('face-down');
+  // const hasFlipping = lowerDesc.includes('flip') || lowerDesc.includes('face-down');
     
     if (hasMemoryElements && hasGridLayout) {
       return (

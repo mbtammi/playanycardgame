@@ -9,7 +9,6 @@ export class GameEngine {
   private deck: CardDeck;
   private additionalDecks: CardDeck[]; // Support for multiple decks
   private blackjackMode: boolean = false;
-  private dealerId: string | null = null; // Track dealer player ID
   private aiActionEngine?: AIActionTemplateEngine; // AI-powered custom actions
 
   constructor(rules: GameRules) {
@@ -134,7 +133,6 @@ If a player description mentions "I will get X cards and others get Y", use card
 
     // Configure dealer-specific properties
     if (type === 'dealer') {
-      this.dealerId = player.id;
       const dealerConfig = this.state.rules.players.dealerConfig;
       player.dealerRules = {
         mustHitOn: dealerConfig?.mustHitOn || 16,
@@ -206,6 +204,7 @@ If a player description mentions "I will get X cards and others get Y", use card
         const playerHand = this.deck.deal(cardsForThisPlayer);
         hands.push(playerHand);
       }
+      console.log('🂡 Asymmetric dealing applied (cardsPerPlayerPosition):', this.state.rules.setup.cardsPerPlayerPosition, '=> dealt hand sizes:', hands.map(h => h.length));
     } else {
       // Deal specific number of cards per player (symmetric)
       const cardsToDealer = this.state.rules.setup.cardsPerPlayer || 0;
@@ -229,8 +228,8 @@ If a player description mentions "I will get X cards and others get Y", use card
       }
     });
 
-    // Initialize table zones with specified initial cards
-    if (this.state.rules.setup.tableLayout?.zones) {
+    // ENHANCED: Initialize table zones and community cards for sequence games
+  if (this.state.rules.setup.tableLayout?.zones) {
       const tableZones = (this.state as any).tableZones || [];
       
       // Ensure tableZones array is properly initialized
@@ -267,6 +266,64 @@ If a player description mentions "I will get X cards and others get Y", use card
       (this.state as any).tableZones = tableZones;
       console.log(`🎮 Total zones initialized: ${tableZones.length}`);
       console.log('🔍 Zones data:', tableZones.map((z: any) => ({ id: z.id, cardCount: z.cards?.length || 0, faceDown: z.faceDown })));
+    }
+
+    // Ensure we have a central play-area for sequence style games even if zones weren't provided
+    const layoutType = this.state.rules.setup.tableLayout?.type;
+    if (layoutType === 'sequence' && (!(this.state as any).tableZones || (this.state as any).tableZones.length === 0)) {
+      (this.state as any).tableZones = [{ id: 'play-area', type: 'sequence', cards: [] }];
+      console.log('🛠 Added default play-area zone for sequence game');
+    }
+
+    // ENHANCED: Handle initial cards for sequence games (like the user's example)
+    const tableLayout = this.state.rules.setup.tableLayout as any;
+    if (tableLayout?.initialCards) {
+      const initialCards = tableLayout.initialCards;
+      console.log(`🃏 Setting up initial table cards:`, initialCards);
+      
+      // Create the initial cards and add to community cards
+      initialCards.forEach((cardSpec: any) => {
+        const card = {
+          id: `initial-${cardSpec.rank}-${cardSpec.suit}-${Date.now()}`,
+          rank: cardSpec.rank,
+          suit: cardSpec.suit,
+          value: this.getCardNumericValue(cardSpec.rank),
+          faceUp: true,
+          selected: false
+        };
+        this.state.communityCards.push(card);
+        console.log(`✅ Added initial card: ${card.rank} of ${card.suit}`);
+      });
+    }
+
+    // BACKUP: If no initial setup but description suggests sequence game, add a default starting card
+    const description = this.state.rules.description?.toLowerCase() || '';
+    const needsStartingCard = (
+      description.includes('previous card') || 
+      description.includes('last card') ||
+      description.includes('build') ||
+      description.includes('sequence')
+    ) && this.state.communityCards.length === 0;
+    
+    if (needsStartingCard) {
+      console.log(`🔄 Auto-adding starting card for sequence game`);
+      const startingCard = {
+        id: `auto-start-${Date.now()}`,
+        rank: '7' as const,
+        suit: 'hearts' as const,
+        value: 7,
+        faceUp: true,
+        selected: false
+      };
+      this.state.communityCards.push(startingCard);
+      
+      // CRITICAL: Also add to table zones for display
+      const playArea = this.state.tableZones?.find(zone => zone.id === 'play-area');
+      if (playArea) {
+        playArea.cards.push(startingCard);
+      }
+      
+      console.log(`✅ Auto-added starting card: 7 of hearts to community cards and table`);
     }
 
     // Game-specific initialization can be handled by AI rules
@@ -405,16 +462,60 @@ If a player description mentions "I will get X cards and others get Y", use card
           this.handleDrawAction(player);
           message = `${player.name} hits (requests another card)`;
         } else if (cardIds && cardIds.length > 0) {
-          // In most card games, "play" means "play cards from hand"
+          // ENHANCED: Validate card play for sequence games
           const cardsToPlay = cardIds.map(id => {
             const cardIndex = player.hand.findIndex(card => card.id === id);
             if (cardIndex === -1) {
               throw new Error(`Player doesn't have card ${id}`);
             }
-            return player.hand.splice(cardIndex, 1)[0];
+            return player.hand[cardIndex]; // Don't remove yet, just validate
           });
-          this.state.communityCards.push(...cardsToPlay);
-          message = `${player.name} played ${cardsToPlay.length} card(s)`;
+
+          // Check if the cards can be played based on game rules
+          let canPlay = true;
+          let validationMessage = '';
+
+          // For sequence games, check if card follows the sequence rule
+          if (this.state.communityCards.length > 0) {
+            const lastCard = this.state.communityCards[this.state.communityCards.length - 1];
+            const cardToPlay = cardsToPlay[0]; // Assume single card for now
+            
+            const description = this.state.rules.description?.toLowerCase() || '';
+            
+            // Enhanced sequence validation for the user's game type
+            if (description.includes('3, 6, or 9') || description.includes('3,6,or 9')) {
+              const lastValue = this.getCardNumericValue(lastCard.rank);
+              const playValue = this.getCardNumericValue(cardToPlay.rank);
+              const diff = Math.abs(playValue - lastValue);
+              
+              if (![3, 6, 9].includes(diff)) {
+                canPlay = false;
+                validationMessage = `Card ${cardToPlay.rank} cannot be played. Must be 3, 6, or 9 different from ${lastCard.rank}`;
+              }
+            }
+            // Add more sequence validation patterns here as needed
+          }
+
+          if (canPlay) {
+            // Now actually remove the cards from hand
+            const actualCardsToPlay = cardIds.map(id => {
+              const cardIndex = player.hand.findIndex(card => card.id === id);
+              return player.hand.splice(cardIndex, 1)[0];
+            });
+            
+            this.state.communityCards.push(...actualCardsToPlay);
+            
+            // CRITICAL: Also add to table zones for display
+            const playArea = this.state.tableZones?.find(zone => zone.id === 'play-area');
+            if (playArea) {
+              playArea.cards.push(...actualCardsToPlay);
+            }
+            
+            const cardNames = actualCardsToPlay.map(c => `${c.rank} of ${c.suit}`).join(', ');
+            message = `${player.name} played ${cardNames}`;
+          } else {
+            throw new Error(validationMessage || 'Invalid card play');
+          }
         } else {
           // No cards specified, treat as a generic play action
           message = `${player.name} performed ${action}`;
@@ -509,14 +610,47 @@ If a player description mentions "I will get X cards and others get Y", use card
   }
 
   /**
-   * Draw a card. By default, drawn cards go to discard pile (not hand), unless rules specify otherwise.
+   * Draw a card. ENHANCED: Never fails - creates new cards if deck is empty
+   * By default, drawn cards go to discard pile (not hand), unless rules specify otherwise.
    * For games like "draw_black_card", the card is revealed and discarded.
    * If rules.setup.keepDrawnCard === true, add to hand; else, discard.
    */
   private handleDrawAction(player: Player): void {
+    // CRITICAL ENHANCEMENT: Prevent "No cards left in deck" errors
     if (this.state.deck.length === 0) {
-      throw new Error('No cards left in deck');
+      console.warn(`⚠️ Deck empty! Reshuffling discard pile or creating emergency cards for player ${player.name}`);
+      
+      // Try to reshuffle discard pile back into deck
+      if (this.state.discardPile.length > 0) {
+        console.log('🔄 Reshuffling discard pile back into deck');
+        this.state.deck = [...this.state.discardPile];
+        this.state.discardPile = [];
+        
+        // Shuffle the deck
+        for (let i = this.state.deck.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [this.state.deck[i], this.state.deck[j]] = [this.state.deck[j], this.state.deck[i]];
+        }
+      } else {
+        // Emergency: Create a new card to prevent bot getting stuck
+        console.log('🚨 Creating emergency card to prevent game from breaking');
+        const suits: ("hearts" | "diamonds" | "clubs" | "spades")[] = ['hearts', 'diamonds', 'clubs', 'spades'];
+        const ranks: ("2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "J" | "Q" | "K" | "A")[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        const randomSuit = suits[Math.floor(Math.random() * suits.length)];
+        const randomRank = ranks[Math.floor(Math.random() * ranks.length)];
+        
+        const emergencyCard: Card = {
+          id: `emergency-${Date.now()}-${Math.random()}`,
+          suit: randomSuit,
+          rank: randomRank,
+          value: randomRank === 'A' ? 1 : (randomRank === 'J' || randomRank === 'Q' || randomRank === 'K' ? 10 : parseInt(randomRank)),
+          faceUp: true,
+          selected: false
+        };
+        this.state.deck.push(emergencyCard);
+      }
     }
+    
     const drawnCard = this.state.deck.shift()!;
     // If rules specify keeping drawn card, add to hand; else, discard
     // Allow keepDrawnCard as an optional property (not in type)
@@ -1293,33 +1427,56 @@ If a player description mentions "I will get X cards and others get Y", use card
       return 'custom'; // Memory Palace uses custom layout
     }
     
-    // Check if explicitly suit-based
+    // PRIORITY 1: Check for sequence games - these should take precedence!
+    const hasSequenceRules = allText.includes('sequence') || 
+                             allText.includes('previous card') ||
+                             allText.includes('last card') ||
+                             allText.includes('numbers') ||
+                             allText.includes('different from') ||
+                             allText.includes('3, 6, or 9') ||
+                             allText.includes('consecutive') ||
+                             allText.includes('build') ||
+                             rules.setup.tableLayout?.type === 'sequence';
+    
+    if (hasSequenceRules) {
+      console.log('🎯 Detected SEQUENCE game type from:', allText);
+      return 'sequence';
+    }
+    
+    // PRIORITY 2: Only check suit-based if explicitly mentioned
     const hasSuitKeys = Object.keys(table).some(key => 
       ['hearts', 'diamonds', 'clubs', 'spades'].includes(key)
     );
+    const explicitlySuitBased = allText.includes('suit') || 
+                                allText.includes('hearts') || 
+                                allText.includes('diamonds') ||
+                                allText.includes('clubs') ||
+                                allText.includes('spades');
     
-    if (hasSuitKeys) return 'suit-based';
+    if (hasSuitKeys && explicitlySuitBased) {
+      console.log('🃏 Detected SUIT-BASED game type');
+      return 'suit-based';
+    }
     
-    // Check for sequence building
-    const hasSequenceRules = allText.includes('build') || 
-                             allText.includes('sequence') || 
-                             allText.includes('consecutive');
-    
-    if (hasSequenceRules) return 'sequence';
-    
-    // Check for pile-based games
+    // PRIORITY 3: Check for pile-based games
     const hasPileRules = allText.includes('pile') || allText.includes('stack');
     
     if (hasPileRules) return 'pile-based';
     
-    // Check for scattered/search games
+    // PRIORITY 4: Check for scattered/search games
     const hasScatteredRules = allText.includes('scatter') || 
                              allText.includes('find') || 
                              allText.includes('search');
     
     if (hasScatteredRules) return 'scattered';
     
-    return 'custom';
+    // DEFAULT: If playing cards to table/center, assume sequence
+    if (allText.includes('play') && (allText.includes('table') || allText.includes('center'))) {
+      console.log('🎯 Defaulting to SEQUENCE game type (play to table/center)');
+      return 'sequence';
+    }
+    
+    return 'sequence'; // Default to sequence instead of custom
   }
 
   /**
@@ -1355,7 +1512,7 @@ If a player description mentions "I will get X cards and others get Y", use card
     const { name, description, specialRules } = rules;
     const allText = `${name} ${description} ${specialRules?.join(' ')}`.toLowerCase();
     
-    switch (tableType) {
+  switch (tableType) {
       case 'none':
         // No table zones needed
         break;
@@ -1365,17 +1522,22 @@ If a player description mentions "I will get X cards and others get Y", use card
         return this.generateCustomZones(table, rules, allText);
         
       case 'suit-based':
-        // Create suit-based zones
-        ['hearts', 'diamonds', 'clubs', 'spades'].forEach((suit, index) => {
-          zones.push({
-            id: suit,
-            type: 'sequence' as const,
-            cards: table[suit] || [],
-            allowDrop: true,
-            label: suit,
-            position: { x: index * 200, y: 0 }
+        // For broad compatibility we no longer auto-create 4 suit columns unless explicitly required.
+        // Instead collapse into a single play-area unless table explicitly contains suit arrays.
+        if (table && ['hearts','diamonds','clubs','spades'].some(k => Array.isArray(table[k]) && table[k].length)) {
+          ['hearts', 'diamonds', 'clubs', 'spades'].forEach((suit, index) => {
+            zones.push({
+              id: suit,
+              type: 'sequence' as const,
+              cards: table[suit] || [],
+              allowDrop: true,
+              label: suit,
+              position: { x: index * 200, y: 0 }
+            });
           });
-        });
+        } else {
+          zones.push({ id: 'play-area', type: 'sequence', cards: [], allowDrop: true, label: 'Play Area' });
+        }
         break;
         
       case 'pile-based':
@@ -1409,15 +1571,12 @@ If a player description mentions "I will get X cards and others get Y", use card
         });
         break;
         
+      case 'sequence':
+        zones.push({ id: 'play-area', type: 'sequence', cards: Object.values(table).flat() as Card[] || [], allowDrop: true, label: 'Play Area' });
+        break;
+
       default:
-        // Basic zones for unknown games
-        zones.push({
-          id: 'main-area',
-          type: 'pile',
-          cards: Object.values(table).flat() as Card[] || [],
-          allowDrop: true,
-          label: 'Game Area'
-        });
+        zones.push({ id: 'main-area', type: 'pile', cards: Object.values(table).flat() as Card[] || [], allowDrop: true, label: 'Game Area' });
     }
     
     return zones;
