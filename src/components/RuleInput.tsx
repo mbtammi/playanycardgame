@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store';
+import SimpleGameCreator from './SimpleGameCreator';
 import './RuleInput.css';
+
+type CreationMode = 'simple' | 'advanced';
 
 const defaultText = `Create a strategic card game called "Memory Palace" for 2-4 players. Each player starts with 5 cards. Place 16 cards face-down in a 4x4 grid on the table. Players take turns flipping 2 cards to find matches. If they match, the player keeps the pair and scores 2 points. If not, the cards flip back face-down. Players can also play cards from their hand to create sequences (consecutive ranks) in the center area for 3 points per sequence. The game ends when all grid cards are claimed. Highest score wins! Add strategic elements like peek cards that let you see any face-down card for 1 turn.`;
 
 
 const RuleInput: React.FC = () => {
+  const [mode, setMode] = useState<CreationMode>('simple');
   const [freeText, setFreeText] = useState(defaultText);
   const [loading, setLoading] = useState(false);
   const { setCurrentPage, setGameSchema } = useAppStore();
@@ -104,26 +108,53 @@ const RuleInput: React.FC = () => {
 
   return (
     <div className="rule-input-container">
-      <h2 className="rule-input-title">Create Your Card Game</h2>
-      <p className="rule-input-description">
-        Describe your card game idea and our AI will create a complete, balanced, and engaging game for you! 
-        Think strategic depth, player interaction, and fun mechanics. The AI will fill in details to make it amazing.
-      </p>
-      <textarea
-        className="rule-input-textarea"
-        value={freeText}
-        onChange={e => setFreeText(e.target.value)}
-        placeholder="Describe your card game in detail... Be creative! Include how many players, what cards go where on the table, how to win, and any special rules. The AI will make it fun and balanced!"
-      />
-      <div className="rule-input-buttons">
-        <button
-          className="btn-primary rule-input-start-button"
-          onClick={handleStartGame}
-          disabled={loading}
-        >
-          {loading ? 'Creating Your Game...' : 'Start Game'}
-        </button>
+      {/* Mode Selection Header */}
+      <div className="mode-selection">
+        <h2 className="rule-input-title">Create Your Card Game</h2>
+        <div className="mode-tabs">
+          <button 
+            className={`mode-tab ${mode === 'simple' ? 'active' : ''}`}
+            onClick={() => setMode('simple')}
+          >
+            🎮 Quick Creator
+          </button>
+          <button 
+            className={`mode-tab ${mode === 'advanced' ? 'active' : ''}`}
+            onClick={() => setMode('advanced')}
+          >
+            ⚡ Type Your Rules
+          </button>
+        </div>
+        <p className="mode-description">
+          {mode === 'simple' 
+            ? 'Choose from templates and customize quickly - perfect for getting started!'
+            : 'Describe your game idea in detail and let AI create a complete, balanced game for you!'
+          }
+        </p>
       </div>
+
+      {/* Render appropriate creator based on mode */}
+      {mode === 'simple' ? (
+        <SimpleGameCreator />
+      ) : (
+        <div className="advanced-creator">
+          <textarea
+            className="rule-input-textarea"
+            value={freeText}
+            onChange={e => setFreeText(e.target.value)}
+            placeholder="Describe your card game in detail... Be creative! Include how many players, what cards go where on the table, how to win, and any special rules. The AI will make it fun and balanced!"
+          />
+          <div className="rule-input-buttons">
+            <button
+              className="btn-primary rule-input-start-button"
+              onClick={handleStartGame}
+              disabled={loading}
+            >
+              {loading ? 'Creating Your Game...' : 'Create with AI'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

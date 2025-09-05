@@ -68,15 +68,37 @@ const GamePage = () => {
     // Show bot thinking indicator
     setBotThinking(true);
     
-    // Add a longer delay to prevent showing bot cards and make it feel more natural
+    // Add timeout protection to prevent infinite bot loops
     const timeout = setTimeout(() => {
-      const { action, cardIds } = getBotAction(currentGame, currentGame.rules, current.id);
-      if (engineRef.current) {
-        engineRef.current.executeAction(current.id, action, cardIds);
-        updateGameState(engineRef.current.getGameState());
+      try {
+        console.log(`🤖 Bot ${current.name} is making a move...`);
+        const startTime = Date.now();
+        
+        const { action, cardIds } = getBotAction(currentGame, currentGame.rules, current.id);
+        
+        const elapsed = Date.now() - startTime;
+        console.log(`🤖 Bot decision took ${elapsed}ms: ${action}${cardIds ? ` with cards [${cardIds.join(', ')}]` : ''}`);
+        
+        if (engineRef.current) {
+          const result = engineRef.current.executeAction(current.id, action, cardIds);
+          if (result.success) {
+            console.log(`✅ Bot action successful: ${result.message}`);
+          } else {
+            console.warn(`⚠️ Bot action failed: ${result.message}`);
+          }
+          updateGameState(engineRef.current.getGameState());
+        }
+      } catch (error) {
+        console.error('🚨 Bot action error:', error);
+        // Emergency fallback: force pass action
+        if (engineRef.current) {
+          engineRef.current.executeAction(current.id, 'pass');
+          updateGameState(engineRef.current.getGameState());
+        }
+      } finally {
+        setBotThinking(false);
       }
-      setBotThinking(false);
-    }, 1500); // Increased delay from 800ms to 1500ms
+    }, 1500); // Timeout after 1.5 seconds
     
     return () => {
       clearTimeout(timeout);
