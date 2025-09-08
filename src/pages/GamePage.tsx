@@ -228,7 +228,9 @@ const GamePage = () => {
     if (!player) return;
     if (!isBlackjack && selectedCards.length === 0) return;
     const playAction = getPlayActionName();
+  console.log('🕹️ handlePlay invoked', { selectedCards, playAction });
     const result = engineRef.current.executeAction(player.id, playAction, isBlackjack ? undefined : selectedCards);
+  console.log('🎯 Play action result', result);
     setMessage(result.message);
     setSelectedCards([]);
     updateGameState(engineRef.current.getGameState());

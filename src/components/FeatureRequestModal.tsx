@@ -24,23 +24,23 @@ const FeatureRequestModal: React.FC<FeatureRequestModalProps> = ({ isOpen, onClo
     setIsSubmitting(true);
     
     try {
-      // Submit to your backend API
-      const response = await fetch('/api/feature-request', {
+      // POST to backend
+      const response = await fetch('http://localhost:3001/api/feature-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, feature })
       });
-
-      if (response.ok) {
+      const result = await response.json();
+      if (response.ok && result.success) {
         setIsSubmitted(true);
         setEmail('');
         setFeature('');
         setTimeout(() => {
           setIsSubmitted(false);
           onClose();
-        }, 2000);
+        }, 2200);
       } else {
-        throw new Error('Failed to submit');
+        throw new Error(result.error || 'Failed to submit');
       }
     } catch (error) {
       console.error('Error submitting feature request:', error);

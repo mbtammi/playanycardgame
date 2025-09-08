@@ -399,12 +399,41 @@ function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: stri
     // ENHANCED: Try actions in priority order with extensive fallback logic
     const prioritizedActions = prioritizeActions(validActions, gameState, rules);
     console.log(`📋 Prioritized actions: [${prioritizedActions.join(', ')}]`);
+    // SPECIAL CASE: Sequence game (3,6,9 difference) helper – precompute a best playable card
+    let sequencePlayableCard: string | null = null;
+    try {
+      const desc = (rules.description || '').toLowerCase();
+      const seqPattern = /3\s*,?\s*6\s*,?\s*or\s*9|3\s*,?\s*6\s*,?\s*9/;
+      const looksLikeSequence = seqPattern.test(desc);
+      if (looksLikeSequence && gameState.communityCards && gameState.communityCards.length > 0) {
+        const last = gameState.communityCards[gameState.communityCards.length - 1];
+        const lastVal = getCardNumericValue(last.rank);
+        const wantedDiffs = [3,6,9];
+        const handSorted = [...bot.hand].sort((a,b)=>getCardNumericValue(a.rank)-getCardNumericValue(b.rank));
+        for (const card of handSorted) {
+          const diff = Math.abs(getCardNumericValue(card.rank) - lastVal);
+            if (wantedDiffs.includes(diff)) { sequencePlayableCard = card.id; break; }
+        }
+        if (sequencePlayableCard) {
+          console.log('🤖 Sequence helper found playable card', { cardId: sequencePlayableCard });
+        } else {
+          console.log('🤖 Sequence helper found no 3/6/9 diff card – will fallback to draw');
+        }
+      }
+    } catch(e){ console.warn('Sequence helper error', e); }
     
     for (let i = 0; i < prioritizedActions.length; i++) {
       const action = prioritizedActions[i];
       console.log(`🔍 Bot trying action ${i + 1}/${prioritizedActions.length}: ${action}`);
       
       try {
+        // If action is play and we have a precomputed sequence card, try that first
+        if (action === 'play' && sequencePlayableCard) {
+          if (wouldActionBeValidSafe(gameState, rules, botId, 'play', [sequencePlayableCard])) {
+            console.log('✅ Bot using sequencePlayableCard for play', sequencePlayableCard);
+            return { action: 'play', cardIds: [sequencePlayableCard] };
+          }
+        }
         const result = tryActionWithCardsExtensive(gameState, rules, botId, action, bot);
         if (result) {
           console.log(`✅ Bot ${bot.name} chose: ${result.action}${result.cardIds ? ` with cards [${result.cardIds.join(', ')}]` : ''}`);
@@ -445,8 +474,13 @@ function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: stri
       if (rules.actions.includes(action) && bot.hand.length > 0) {
         try {
           console.log(`🔄 Level 2 fallback: trying ${action} with any card`);
-          // Try with each card in hand
-          for (const card of bot.hand) {
+          // Try with sequence helper first
+          if (action === 'play' && sequencePlayableCard && wouldActionBeValidSafe(gameState, rules, botId, 'play', [sequencePlayableCard])) {
+            return { action: 'play', cardIds: [sequencePlayableCard] };
+          }
+          // Try with each card in hand (sorted to stabilize behavior)
+          const handIter = [...bot.hand].sort((a,b)=>getCardNumericValue(a.rank)-getCardNumericValue(b.rank));
+          for (const card of handIter) {
             if (wouldActionBeValidSafe(gameState, rules, botId, action as GameAction, [card.id])) {
               console.log(`🔄 Level 2 fallback: ${action} with card ${card.rank}${card.suit}`);
               return { action: action as GameAction, cardIds: [card.id] };

@@ -10,6 +10,8 @@ export class GameEngine {
   private additionalDecks: CardDeck[]; // Support for multiple decks
   private blackjackMode: boolean = false;
   private aiActionEngine?: AIActionTemplateEngine; // AI-powered custom actions
+  // Memoization cache to avoid recomputing request-game heuristic repeatedly within the same turn
+  private cachedIsCardRequest?: { turn: number; value: boolean };
 
   constructor(rules: GameRules) {
     // Initialize primary deck
@@ -306,24 +308,48 @@ If a player description mentions "I will get X cards and others get Y", use card
     ) && this.state.communityCards.length === 0;
     
     if (needsStartingCard) {
-      console.log(`🔄 Auto-adding starting card for sequence game`);
-      const startingCard = {
-        id: `auto-start-${Date.now()}`,
-        rank: '7' as const,
-        suit: 'hearts' as const,
-        value: 7,
-        faceUp: true,
-        selected: false
-      };
-      this.state.communityCards.push(startingCard);
-      
-      // CRITICAL: Also add to table zones for display
+      // Guard against double insertion: only add if BOTH sources empty.
       const playArea = this.state.tableZones?.find(zone => zone.id === 'play-area');
-      if (playArea) {
-        playArea.cards.push(startingCard);
+      const zoneEmpty = !playArea || playArea.cards.length === 0;
+      const communityEmpty = this.state.communityCards.length === 0;
+      if (zoneEmpty && communityEmpty) {
+        console.log(`🔄 Auto-adding starting card for sequence game (both zone & community empty)`);
+        const startingCard = {
+          id: `auto-start-${Date.now()}`,
+          rank: '7' as const,
+            suit: 'hearts' as const,
+          value: 7,
+          faceUp: true,
+          selected: false
+        };
+        // Authoritative source: push into zone first (create if needed), then mirror community
+        if (playArea) {
+          playArea.cards.push(startingCard);
+        } else {
+          // create default zone if missing
+          (this.state as any).tableZones = (this.state as any).tableZones || [];
+          (this.state as any).tableZones.push({ id: 'play-area', type: 'sequence', cards: [startingCard] });
+        }
+        this.state.communityCards = [ ...((this.state as any).tableZones.find((z:any)=>z.id==='play-area')?.cards || []) ];
+        console.log(`✅ Auto-added starting card: 7 of hearts (authoritative zone -> community mirror)`);
+      } else {
+        // If only community missing, mirror zone; if only zone missing, create from community
+        if (!zoneEmpty && communityEmpty) {
+          this.state.communityCards = [...(playArea!.cards)];
+          console.log('♻️ Mirrored existing zone starting card(s) into communityCards');
+        } else if (zoneEmpty && !communityEmpty) {
+          // mirror community into zone
+          if (playArea) {
+            playArea.cards.push(...this.state.communityCards);
+          } else {
+            (this.state as any).tableZones = (this.state as any).tableZones || [];
+            (this.state as any).tableZones.push({ id: 'play-area', type: 'sequence', cards: [...this.state.communityCards] });
+          }
+          console.log('♻️ Mirrored existing communityCards into zone');
+        } else {
+          console.log('ℹ️ Starting card guard: both zone & community already populated, skipping auto-add');
+        }
       }
-      
-      console.log(`✅ Auto-added starting card: 7 of hearts to community cards and table`);
     }
 
     // Game-specific initialization can be handled by AI rules
@@ -437,6 +463,7 @@ If a player description mentions "I will get X cards and others get Y", use card
   }
 
   executeAction(playerId: string, action: GameAction, cardIds?: string[], target?: string ): GameActionResult {
+  console.log('[ENGINE v-seq-debug-1] executeAction entry', { action, cardIds: cardIds?.slice(), playerId });
     if (!this.isValidAction(playerId, action, cardIds)) {
       return {
         playerId,
@@ -474,26 +501,74 @@ If a player description mentions "I will get X cards and others get Y", use card
           // Check if the cards can be played based on game rules
           let canPlay = true;
           let validationMessage = '';
+          // --- PRIMARY SEQUENCE ZONE RESOLUTION ---
+          // Games may name their central zone differently ("play-area", "table", "center", etc.).
+          // We generalize detection so sequence games always work without hardcoded IDs.
+          const resolvePrimarySequenceZone = () => {
+            if (!this.state.tableZones || this.state.tableZones.length === 0) return undefined;
+            // 1. Explicit id 'play-area'
+            let zone = this.state.tableZones.find(z => z.id === 'play-area');
+            // 2. Any zone of type 'sequence'
+            if (!zone) zone = this.state.tableZones.find(z => (z as any).type === 'sequence');
+            // 3. Fallback: single zone games -> first zone
+            if (!zone && this.state.tableZones.length === 1) zone = this.state.tableZones[0];
+            // 4. Named common aliases
+            if (!zone) zone = this.state.tableZones.find(z => ['table','center','center-pile','pile','sequence'].includes(z.id));
+            return zone;
+          };
 
-          // For sequence games, check if card follows the sequence rule
-          if (this.state.communityCards.length > 0) {
-            const lastCard = this.state.communityCards[this.state.communityCards.length - 1];
+          const primarySequenceZone = resolvePrimarySequenceZone();
+          console.log('[ENGINE v-seq-debug-1] primarySequenceZone resolved', primarySequenceZone ? { id: primarySequenceZone.id, count: primarySequenceZone.cards.length } : 'none', {
+            communityCount: this.state.communityCards.length
+          });
+
+          // For sequence validation prefer the zone's cards if it has equal or more cards than community (desync safety)
+          const sequenceSource = (primarySequenceZone?.cards?.length || 0) >= (this.state.communityCards.length || 0)
+            ? primarySequenceZone?.cards
+            : this.state.communityCards;
+          if (sequenceSource && sequenceSource.length > 0) {
+            const lastCard = sequenceSource[sequenceSource.length - 1];
             const cardToPlay = cardsToPlay[0]; // Assume single card for now
-            
             const description = this.state.rules.description?.toLowerCase() || '';
-            
-            // Enhanced sequence validation for the user's game type
-            if (description.includes('3, 6, or 9') || description.includes('3,6,or 9')) {
+            // Sync any missing cards from zone into community for consistency
+            if (primarySequenceZone && primarySequenceZone.cards.length > this.state.communityCards.length) {
+              const missing = primarySequenceZone.cards.slice(this.state.communityCards.length);
+              if (missing.length) {
+                console.log('🛠 Syncing communityCards with primary sequence zone (missing count)', missing.length, 'zoneId:', primarySequenceZone.id);
+                this.state.communityCards.push(...missing);
+              }
+            }
+            // Broaden detection of the "3, 6, or 9" rule (allow variances in punctuation / wording)
+            const hasThree = description.includes('3');
+            const hasSix = description.includes('6');
+            const hasNine = description.includes('9');
+            const mentionsDiffWords = /bigger|smaller|difference|apart|away/.test(description);
+            const explicitPhrase = description.includes('3, 6, or 9') || description.includes('3,6,or 9') || description.includes('3, 6 or 9') || description.includes('3,6,9');
+            const sequenceRuleDetected = (hasThree && hasSix && hasNine && mentionsDiffWords) || explicitPhrase;
+            if (sequenceRuleDetected) {
               const lastValue = this.getCardNumericValue(lastCard.rank);
               const playValue = this.getCardNumericValue(cardToPlay.rank);
               const diff = Math.abs(playValue - lastValue);
-              
+              console.log('🔍 Sequence validation debug', {
+                source: 'sequence-validation',
+                sequenceLength: sequenceSource.length,
+                lastCard: `${lastCard.rank} of ${lastCard.suit}`,
+                cardAttempt: `${cardToPlay.rank} of ${cardToPlay.suit}`,
+                lastValue,
+                playValue,
+                diff,
+                allowed: [3,6,9].includes(diff)
+              });
               if (![3, 6, 9].includes(diff)) {
                 canPlay = false;
                 validationMessage = `Card ${cardToPlay.rank} cannot be played. Must be 3, 6, or 9 different from ${lastCard.rank}`;
               }
+            } else {
+              console.log('ℹ️ Sequence rule pattern not detected in description (skipping diff check).', {
+                descriptionSnippet: description.slice(0, 120) + (description.length > 120 ? '...' : ''),
+                hasThree, hasSix, hasNine, mentionsDiffWords, explicitPhrase
+              });
             }
-            // Add more sequence validation patterns here as needed
           }
 
           if (canPlay) {
@@ -502,22 +577,43 @@ If a player description mentions "I will get X cards and others get Y", use card
               const cardIndex = player.hand.findIndex(card => card.id === id);
               return player.hand.splice(cardIndex, 1)[0];
             });
+            console.log('✅ Playing cards (removing from hand)', actualCardsToPlay.map(c => `${c.rank} of ${c.suit}`));
             
-            this.state.communityCards.push(...actualCardsToPlay);
-            
-            // CRITICAL: Also add to table zones for display
-            const playArea = this.state.tableZones?.find(zone => zone.id === 'play-area');
-            if (playArea) {
-              playArea.cards.push(...actualCardsToPlay);
+            // Authoritative sequence handling:
+            // 1. Add cards ONLY to the primary sequence zone (or fallback zone)
+            // 2. Mirror communityCards from that zone (no dual push to avoid duplication)
+            if (primarySequenceZone) {
+              primarySequenceZone.cards.push(...actualCardsToPlay);
+              console.log('🗂️ Sequence zone update', { zoneId: primarySequenceZone.id, newCount: primarySequenceZone.cards.length });
+              this.state.communityCards = [...primarySequenceZone.cards];
+              console.log('🧩 Community (mirrored from zone) now', this.state.communityCards.map(c => c.rank));
+            } else if (this.state.tableZones && this.state.tableZones.length) {
+              this.state.tableZones[0].cards.push(...actualCardsToPlay);
+              console.log('🗂️ Fallback zone update', { zoneId: this.state.tableZones[0].id, newCount: this.state.tableZones[0].cards.length });
+              this.state.communityCards = [...this.state.tableZones[0].cards];
+              console.log('🧩 Community (mirrored from fallback zone) now', this.state.communityCards.map(c => c.rank));
+            } else {
+              // As absolute fallback (should not happen in sequence games), keep legacy behavior
+              this.state.communityCards.push(...actualCardsToPlay);
+              console.warn('⚠️ No tableZones available; fell back to communityCards only.');
             }
             
             const cardNames = actualCardsToPlay.map(c => `${c.rank} of ${c.suit}`).join(', ');
             message = `${player.name} played ${cardNames}`;
+            // Post-play debug snapshot
+            console.log('🧪 Post-play snapshot', {
+              playerId: player.id,
+              remainingHand: player.hand.map(c => c.rank),
+              communityCount: this.state.communityCards.length,
+              sequenceZone: primarySequenceZone ? { id: primarySequenceZone.id, count: primarySequenceZone.cards.length, ranks: primarySequenceZone.cards.map(c => c.rank) } : null
+            });
           } else {
+            console.warn('⛔ Play rejected', { validationMessage, attempted: cardIds });
             throw new Error(validationMessage || 'Invalid card play');
           }
         } else {
           // No cards specified, treat as a generic play action
+          console.warn('ℹ️ Play action invoked without cardIds; treating as generic action');
           message = `${player.name} performed ${action}`;
         }
       }
@@ -786,22 +882,65 @@ If a player description mentions "I will get X cards and others get Y", use card
    * Intelligent game type detection: Does this game involve requesting cards rather than playing from hand?
    */
   private isCardRequestGame(): boolean {
-    const { name, description, specialRules, objective } = this.state.rules;
-    const allText = [name, description, ...(specialRules || []), objective?.description || ''].join(' ').toLowerCase();
-    
-    // Blackjack-style games where "play" means "hit" (request card)
-    if (allText.includes('blackjack') || allText.includes('21')) return true;
-    if (allText.includes('hit') && allText.includes('stand')) return true;
-    if (allText.includes('bust') || allText.includes('over 21')) return true;
-    
-    // Other card-request games
-    if (allText.includes('request card') || allText.includes('ask for card')) return true;
-    if (allText.includes('dealer gives') || allText.includes('receive card')) return true;
-    
-    // Games where you don't play from hand but accumulate cards
-    if (this.state.rules.setup.cardsPerPlayer === 0 && allText.includes('draw')) return true;
-    
-    return false;
+    // Memoization: if we already computed this this turn, reuse
+    if (this.cachedIsCardRequest && this.cachedIsCardRequest.turn === this.state.turn) {
+      return this.cachedIsCardRequest.value;
+    }
+    const { name, description, specialRules, objective, setup } = this.state.rules as any;
+    const allText = [name, description, ...(specialRules || []), objective?.description || '']
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    const asymmetricPositions: number[] | undefined = Array.isArray(setup?.cardsPerPlayerPosition)
+      ? setup.cardsPerPlayerPosition : undefined;
+    const hasAsymmetricDealing = !!asymmetricPositions && asymmetricPositions.some(n => n > 0);
+    const anyPlayerHasHand = this.state.players.some(p => p.hand.length > 0);
+    const sequencePattern = /(3\s*,?\s*6\s*,?\s*or\s*9|3\s*,?\s*6\s*,?\s*9)/.test(allText);
+
+    // --- Primary positive identification of true card-request games (e.g., Blackjack) ---
+    const looksLikeBlackjack = allText.includes('blackjack') || allText.includes('21') ||
+      (allText.includes('hit') && allText.includes('stand')) ||
+      allText.includes('bust') || allText.includes('over 21');
+
+    const explicitRequestKeywords = /request card|ask for card|dealer gives|receive card/.test(allText);
+
+    // --- Negative guards (these force this to NOT be treated as a request game) ---
+    // If we actually have starting hands (even if cardsPerPlayer is 0 but position array used) it's a play-from-hand game.
+    const hasRealStartingHands = hasAsymmetricDealing || anyPlayerHasHand || (setup?.cardsPerPlayer && setup.cardsPerPlayer > 0);
+    // Sequence rule explicitly means we expect to play from hand relative to previous card
+    if (sequencePattern && hasRealStartingHands) {
+      console.log('[ENGINE] isCardRequestGame -> false (sequencePattern with real hands)');
+      this.cachedIsCardRequest = { turn: this.state.turn, value: false };
+      return false;
+    }
+
+    // Some schemas set cardsPerPlayer = 0 but supply cardsPerPlayerPosition; treat as real hand game.
+    if (setup?.cardsPerPlayer === 0 && hasAsymmetricDealing) {
+      console.log('[ENGINE] isCardRequestGame -> false (asymmetric dealing overrides zero cardsPerPlayer)');
+      this.cachedIsCardRequest = { turn: this.state.turn, value: false };
+      return false;
+    }
+
+    // If description emphasizes "play a card" + numeric difference, not a request pattern
+    if (/play a card/.test(allText) && /difference|bigger|smaller/.test(allText)) {
+      console.log('[ENGINE] isCardRequestGame -> false (play-from-hand wording)');
+      this.cachedIsCardRequest = { turn: this.state.turn, value: false };
+      return false;
+    }
+
+    // Legacy heuristic previously: cardsPerPlayer === 0 && contains 'draw' -> request game.
+    // We tighten: only if NO starting hands AND (explicit request keywords OR looksLikeBlackjack) AND NOT a sequence game.
+    if (!hasRealStartingHands && (looksLikeBlackjack || explicitRequestKeywords)) {
+      console.log('[ENGINE] isCardRequestGame -> true (blackjack/request keywords & no starting hands)');
+      this.cachedIsCardRequest = { turn: this.state.turn, value: true };
+      return true;
+    }
+
+    // Final safeguard: If still ambiguous, default to false (prefer enabling play branch)
+  console.log('[ENGINE] isCardRequestGame -> false (default fallback)');
+  this.cachedIsCardRequest = { turn: this.state.turn, value: false };
+  return false;
   }
 
   /**
@@ -1806,6 +1945,26 @@ If a player description mentions "I will get X cards and others get Y", use card
     for (const action of allowedActions) {
       if (this.isValidAction(player.id, action)) {
         validActions.push(action);
+      }
+    }
+
+    // SPECIAL CASE: 'play' may require specifying cardIds, so isValidAction(false) could hide button.
+    // We proactively add 'play' if any card in hand could be legally played under sequence constraints.
+    if (!validActions.includes('play') && allowedActions.includes('play')) {
+      const desc = (this.state.rules.description || '').toLowerCase();
+      const seqPattern = /3\s*,?\s*6\s*,?\s*or\s*9|3\s*,?\s*6\s*,?\s*9/;
+      const looksLikeSequence = seqPattern.test(desc);
+      if (looksLikeSequence && this.state.communityCards.length > 0) {
+        const last = this.state.communityCards[this.state.communityCards.length - 1];
+        const lastVal = this.getCardNumericValue(last.rank);
+        const playable = player.hand.some(c => {
+          const diff = Math.abs(this.getCardNumericValue(c.rank) - lastVal);
+          return [3,6,9].includes(diff);
+        });
+        if (playable) {
+          console.log('[ENGINE] Adding play action (sequence playable cards detected)');
+          validActions.push('play');
+        }
       }
     }
     

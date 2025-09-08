@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 const cors = require('cors');
 const fs = require('fs').promises;
 const path = require('path');
+const nodemailer = require("nodemailer");
 
 // Try Firebase Admin SDK first, fallback to local storage
 const admin = require('firebase-admin'); 
@@ -228,42 +229,34 @@ app.get('/api/newsletter/stats', async (req, res) => {
   }
 });
 
-// Feature request endpoint
+// Feature request endpoint (with EmailJS integration)
 app.post('/api/feature-request', async (req, res) => {
   try {
     const { email, feature } = req.body;
-    
     if (!email || !feature) {
       return res.status(400).json({ error: 'Email and feature description are required' });
     }
-    
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
-    
-    // Create feature requests directory if it doesn't exist
+
+    // Save to local file as before
     const requestsDir = path.join(__dirname, 'data');
     const requestsFile = path.join(requestsDir, 'feature-requests.json');
-    
     try {
       await fs.access(requestsDir);
     } catch (err) {
       await fs.mkdir(requestsDir, { recursive: true });
     }
-    
-    // Read existing requests
     let requests = [];
     try {
       const data = await fs.readFile(requestsFile, 'utf8');
       requests = JSON.parse(data);
     } catch (err) {
-      // File doesn't exist yet, start with empty array
       requests = [];
     }
-    
-    // Add new request with timestamp
     const newRequest = {
       email,
       feature,
@@ -271,19 +264,46 @@ app.post('/api/feature-request', async (req, res) => {
       id: Date.now() + Math.random().toString(36).substr(2, 9),
       status: 'submitted'
     };
-    
     requests.push(newRequest);
-    
-    // Save updated requests
     await fs.writeFile(requestsFile, JSON.stringify(requests, null, 2));
-    
-    console.log(`New feature request from ${email}: ${feature.substring(0, 100)}...`);
-    
-    res.status(200).json({ 
-      message: 'Feature request submitted successfully!',
-      success: true
+        
+    // Nodemailer integration (Gmail SMTP)
+    const gmailUser = process.env.GMAIL_USER;
+    const gmailPass = process.env.GMAIL_PASS;
+    const toEmail = process.env.FEATURE_REQUEST_TO_EMAIL || gmailUser;
+
+    if (!gmailUser || !gmailPass) {
+      console.warn('Gmail SMTP credentials missing, skipping email send');
+      return res.status(200).json({ message: 'Feature request saved (email not sent: missing config)', success: true });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: gmailUser,
+        pass: gmailPass
+      }
     });
-    
+
+    const mailOptions = {
+      from: `PlayAnyCardGame <${gmailUser}>`,
+      to: toEmail,
+      subject: 'New Feature Request',
+      text: `You got a new feature request from ${email}:
+
+${feature}
+
+Reply to: ${email}`
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log(`✅ Feature request email sent via Gmail for ${email}`);
+      return res.status(200).json({ message: 'Feature request submitted and emailed!', success: true });
+    } catch (err) {
+      console.error('Nodemailer send error:', err);
+      return res.status(200).json({ message: 'Feature request saved (email send error)', success: true, emailError: err.message });
+    }
   } catch (error) {
     console.error('Feature request error:', error);
     res.status(500).json({ error: 'Internal server error' });
