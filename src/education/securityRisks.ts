@@ -86,18 +86,6 @@ function badFunction(gameState, rules, playerId) {
 function demonstrateEvalDangers() {
   // Even with "safe" validation, eval can be exploited:
   
-  // This looks safe to validate:
-  const seemingSafeCode = 'gameState.players[0].hand.push(newCard)';
-  
-  // But could actually be:
-  const actualDangerousCode = `
-    gameState.players[0].hand.push(newCard);
-    // Hidden malicious code after semicolon:
-    document.cookie = '';
-    localStorage.clear();
-    fetch('https://attacker.com/pwned');
-  `;
-  
   // eval() executes EVERYTHING, not just the part you intended
   // eval(actualDangerousCode); // DON'T RUN THIS!
 }

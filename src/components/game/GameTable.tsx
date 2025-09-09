@@ -96,7 +96,7 @@ const GameTable: React.FC<GameTableProps> = ({
 
         {/* Render zones dynamically */}
         <div className="table-zones-container">
-          {renderTableZones(zones, metadata)}
+          {renderTableZones(zones)}
         </div>
 
         {/* Player zones (if the game uses them) */}
@@ -138,12 +138,12 @@ const GameTable: React.FC<GameTableProps> = ({
   /**
    * Render table zones dynamically based on AI analysis
    */
-  const renderTableZones = (zones: NonNullable<GameTableProps['tableData']>['zones'], metadata: NonNullable<GameTableProps['tableData']>['metadata']) => {
+  const renderTableZones = (zones: NonNullable<GameTableProps['tableData']>['zones']) => {
     if (!zones || zones.length === 0) return null;
 
     return zones
       .filter(zone => zone.type !== 'player-zone') // Player zones rendered separately
-      .map(zone => renderAdvancedTableZone(zone, metadata));
+      .map(zone => renderAdvancedTableZone(zone));
   };
 
   /**
@@ -157,7 +157,7 @@ const GameTable: React.FC<GameTableProps> = ({
       <div className="player-zones-container">
         <h3>Player Areas</h3>
         <div className="player-zones-grid">
-          {playerZones.map(zone => renderAdvancedTableZone(zone, { needsTable: true, gameType: '', flexiblePlacement: false, supportsFlipping: false, supportsPeeking: false, hasPlayerZones: true, hasGridLayout: false, hasCenterArea: false }))}
+          {playerZones.map(zone => renderAdvancedTableZone(zone))}
         </div>
       </div>
     );
@@ -166,7 +166,7 @@ const GameTable: React.FC<GameTableProps> = ({
   /**
    * Advanced table zone rendering that handles all zone types
    */
-  const renderAdvancedTableZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], metadata: NonNullable<GameTableProps['tableData']>['metadata']) => {
+  const renderAdvancedTableZone = (zone: NonNullable<GameTableProps['tableData']>['zones'][0]) => {
     // Try zone.cards first (from engine tableZones), then fallback to table lookup
     const zoneCards = zone.cards || (table as any)?.[zone.id] || [];
     
@@ -185,7 +185,7 @@ const GameTable: React.FC<GameTableProps> = ({
         
         {/* Zone content */}
         <div className="zone-content">
-          {renderZoneContent(zone, zoneCards, metadata)}
+          {renderZoneContent(zone, zoneCards)}
         </div>
       </div>
     );
@@ -194,7 +194,7 @@ const GameTable: React.FC<GameTableProps> = ({
   /**
    * Render zone content based on zone type and game requirements
    */
-  const renderZoneContent = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[], metadata: NonNullable<GameTableProps['tableData']>['metadata']) => {
+  const renderZoneContent = (zone: NonNullable<GameTableProps['tableData']>['zones'][0], cards: CardType[]) => {
     // Handle empty zones
     if (cards.length === 0) {
       return renderEmptyZone(zone);

@@ -77,12 +77,7 @@ export const memoryPalaceDeluxe: GameRules = {
     deckSize: 52,
     tableLayout: {
       type: 'grid',
-      allowFlexiblePlacement: true,
-      zones: [
-        { id: 'memory_grid', type: 'grid', initialCards: 16, faceDown: true },
-        { id: 'revelation_pile', type: 'pile', initialCards: 0 },
-        { id: 'mind_vault', type: 'pile', initialCards: 0, faceDown: true }
-      ]
+      allowFlexiblePlacement: true
     }
   },
   objective: { type: 'highest_score', description: 'Score points through memory matches and mind tricks' },
@@ -330,6 +325,184 @@ export const timeWarpTemplate: ActionTemplate = {
   targetType: 'all'
 };
 
+// Template 7: Mind Read (Memory Game Action)
+export const mindReadTemplate: ActionTemplate = {
+  id: 'mind_read',
+  name: 'Mind Read',
+  description: 'Peek at 2 cards in opponent\'s hand',
+  parameters: [],
+  effects: [
+    {
+      type: 'peek_card',
+      source: 'opponent_hand',
+      amount: 2,
+      message: 'You peer into opponent\'s thoughts!'
+    }
+  ],
+  conditions: [
+    { type: 'hand_size', operator: 'greater', value: 0, target: 'opponent' }
+  ],
+  requiresCards: false,
+  targetType: 'opponent'
+};
+
+// Template 8: Future Sight (Advanced Peek)
+export const futureSightTemplate: ActionTemplate = {
+  id: 'future_sight',
+  name: 'Future Sight',
+  description: 'Look at the top 3 deck cards',
+  parameters: [],
+  effects: [
+    {
+      type: 'peek_card',
+      source: 'deck',
+      amount: 3,
+      message: 'You see the future of the deck!'
+    }
+  ],
+  conditions: [],
+  requiresCards: false,
+  targetType: 'self'
+};
+
+// Template 9: Memory Steal (Simplified Memory Action)
+export const memoryStealTemplate: ActionTemplate = {
+  id: 'memory_steal',
+  name: 'Memory Steal',
+  description: 'Steal a random card from opponent and draw one from deck',
+  parameters: [],
+  effects: [
+    {
+      type: 'steal_card',
+      source: 'opponent_hand',
+      target: 'hand',
+      amount: 1,
+      message: 'You steal a memory!'
+    },
+    {
+      type: 'draw_cards',
+      source: 'deck',
+      target: 'hand',
+      amount: 1,
+      message: 'You draw inspiration from the deck!'
+    }
+  ],
+  conditions: [
+    { type: 'hand_size', operator: 'greater', value: 0, target: 'opponent' }
+  ],
+  requiresCards: false,
+  targetType: 'opponent'
+};
+
+// Template 10: Revelation Combo (Simplified Match Action)
+export const revelationComboTemplate: ActionTemplate = {
+  id: 'revelation_combo',
+  name: 'Revelation Combo',
+  description: 'Draw 2 cards and gain a bonus point if they match suits',
+  parameters: [],
+  effects: [
+    {
+      type: 'draw_cards',
+      source: 'deck',
+      target: 'hand',
+      amount: 2,
+      message: 'You attempt a revelation!'
+    },
+    {
+      type: 'modify_score',
+      amount: 1,
+      message: 'Your revelation brings insight!'
+    }
+  ],
+  conditions: [],
+  requiresCards: false,
+  targetType: 'self'
+};
+
+// Template 11: Memory Bank (Storage Action)
+export const memoryBankTemplate: ActionTemplate = {
+  id: 'memory_bank',
+  name: 'Memory Bank',
+  description: 'Discard a card to gain 2 points (strategic memory storage)',
+  parameters: [],
+  effects: [
+    {
+      type: 'discard_cards',
+      source: 'hand',
+      target: 'discard',
+      amount: 1,
+      message: 'Memory safely banked!'
+    },
+    {
+      type: 'modify_score',
+      amount: 2,
+      message: 'Your strategic memory pays off!'
+    }
+  ],
+  conditions: [
+    { type: 'hand_size', operator: 'greater', value: 0, target: 'self' }
+  ],
+  requiresCards: true,
+  targetType: 'self'
+};
+
+// Template 12: Forget Spell (Memory Disruption)
+export const forgetSpellTemplate: ActionTemplate = {
+  id: 'forget_spell',
+  name: 'Forget Spell',
+  description: 'Force opponent to discard a card and shuffle the deck',
+  parameters: [],
+  effects: [
+    {
+      type: 'discard_cards',
+      source: 'opponent_hand',
+      target: 'discard',
+      amount: 1,
+      message: 'Opponent forgets and discards!'
+    },
+    {
+      type: 'shuffle_deck',
+      message: 'Memories scattered by the spell!'
+    }
+  ],
+  conditions: [
+    { type: 'hand_size', operator: 'greater', value: 0, target: 'opponent' }
+  ],
+  requiresCards: false,
+  targetType: 'opponent'
+};
+
+// Template 13: Card Storm (Simplified Chaos Action)
+export const cardStormTemplate: ActionTemplate = {
+  id: 'card_storm',
+  name: 'Card Storm',
+  description: 'Create chaos: everyone draws 2, discards 1, then shuffle the deck',
+  parameters: [],
+  effects: [
+    {
+      type: 'draw_cards',
+      source: 'deck',
+      target: 'hand',
+      amount: 2,
+      message: 'Storm winds bring cards to you!'
+    },
+    {
+      type: 'discard_cards',
+      source: 'hand',
+      target: 'discard',
+      amount: 1,
+      message: 'You discard to the storm!'
+    },
+    {
+      type: 'shuffle_deck',
+      message: 'The storm shuffles reality!'
+    }
+  ],
+  conditions: [],
+  requiresCards: false,
+  targetType: 'all'
+};
+
 // Export all templates for easy registration
 export const complexActionTemplates = [
   stealAndDrawTemplate,
@@ -337,7 +510,14 @@ export const complexActionTemplates = [
   cardSacrificeTemplate,
   phantomSwapTemplate,
   chaosStrikeTemplate,
-  timeWarpTemplate
+  timeWarpTemplate,
+  mindReadTemplate,
+  futureSightTemplate,
+  memoryStealTemplate,
+  revelationComboTemplate,
+  memoryBankTemplate,
+  forgetSpellTemplate,
+  cardStormTemplate
 ];
 
 // Export all games for easy testing

@@ -1,20 +1,20 @@
 
 import { motion } from 'framer-motion';
-import { useAppStore } from '../store';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import RuleInput from '../components/RuleInput';
 import './RuleBuilderPage.css';
 
 const RuleBuilderPage = () => {
-  const { setCurrentPage } = useAppStore();
+  const navigate = useNavigate();
 
   const handleBack = () => {
-    setCurrentPage('landing');
+    navigate('/landing');
   };
 
   const handleNext = () => {
     // For now, just navigate to examples - in full implementation, this would handle the rule building flow
-    setCurrentPage('examples');
+    navigate('/examples');
   };
 
   return (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useAppStore } from '../store';
 import { getEmailStats, adminLogin } from '../utils/firebase';
 import './AdminDashboard.css';
 
@@ -16,13 +16,13 @@ interface NewsletterStats {
 }
 
 const AdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [stats, setStats] = useState<NewsletterStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [authError, setAuthError] = useState('');
-  const { setCurrentPage } = useAppStore();
 
   // Check if already authenticated
   useEffect(() => {
@@ -165,7 +165,7 @@ const AdminDashboard: React.FC = () => {
             </form>
             
             <button 
-              onClick={() => setCurrentPage('newsletter')}
+              onClick={() => navigate('/newsletter')}
               className="back-button"
             >
               ← Back to Newsletter
@@ -187,7 +187,7 @@ const AdminDashboard: React.FC = () => {
                   Logout
                 </button>
                 <button 
-                  onClick={() => setCurrentPage('newsletter')}
+                  onClick={() => navigate('/newsletter')}
                   className="back-button"
                 >
                   ← Back to Newsletter

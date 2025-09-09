@@ -2022,7 +2022,6 @@ If a player description mentions "I will get X cards and others get Y", use card
       return this.aiActionEngine.executeTemplateAction(
         action,
         this.state,
-        this.state.rules,
         player.id,
         {}, // parameters - could be extracted from UI or rules
         cardIds,

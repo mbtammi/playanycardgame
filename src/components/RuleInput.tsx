@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import SimpleGameCreator from './SimpleGameCreator';
 import './RuleInput.css';
@@ -9,10 +10,11 @@ const defaultText = `Just a game where there is 3 players. The bots will have 10
 
 
 const RuleInput: React.FC = () => {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<CreationMode>('simple');
   const [freeText, setFreeText] = useState(defaultText);
   const [loading, setLoading] = useState(false);
-  const { setCurrentPage, setGameSchema } = useAppStore();
+  const { setGameSchema } = useAppStore();
 
   // Call backend API to interpret rules and start game directly
   const handleStartGame = async () => {
@@ -54,7 +56,7 @@ const RuleInput: React.FC = () => {
         if (fixedGame) {
           console.log('✅ Game logic fixed by AI');
           setGameSchema(fixedGame);
-          setCurrentPage('game');
+          navigate('/game');
         } else {
           throw new Error(`Game logic issues found: ${validationResult.issues.join(', ')}. Please adjust your rules and try again.`);
         }
@@ -62,7 +64,7 @@ const RuleInput: React.FC = () => {
         console.log('✅ Game logic validation passed');
         // Start the game directly
         setGameSchema(filled);
-        setCurrentPage('game');
+        navigate('/game');
       }
     } catch (err: any) {
       alert('Error creating your game: ' + (err.message || 'Please try rephrasing your rules and try again.'));

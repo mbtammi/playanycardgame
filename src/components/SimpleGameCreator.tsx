@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { GameRules } from '../types';
 import { useAppStore } from '../store';
 import './SimpleGameCreator.css';
@@ -133,12 +134,13 @@ const gameTemplates: GameTemplate[] = [
 ];
 
 const SimpleGameCreator: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedTemplate, setSelectedTemplate] = useState<GameTemplate | null>(null);
   const [playerCount, setPlayerCount] = useState(2);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [customName, setCustomName] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setCurrentPage, setGameSchema } = useAppStore();
+  const { setGameSchema } = useAppStore();
 
   const handleTemplateSelect = (template: GameTemplate) => {
     setSelectedTemplate(template);
@@ -209,7 +211,7 @@ const SimpleGameCreator: React.FC = () => {
 
       console.log('Created simple game:', gameRules);
       setGameSchema(gameRules);
-      setCurrentPage('game');
+      navigate('/game');
     } catch (error) {
       console.error('Error creating simple game:', error);
       alert('Error creating game. Please try again.');

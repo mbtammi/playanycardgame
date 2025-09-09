@@ -1,13 +1,15 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Play, BookOpen, Sparkles, Users, Trophy } from 'lucide-react';
 
 const LandingPage = () => {
-  const { setCurrentPage, setGameMode } = useAppStore();
+  const { setGameMode } = useAppStore();
+  const navigate = useNavigate();
 
   const handlePlayNow = () => {
     setGameMode('create');
-    setCurrentPage('rule-builder');
+    navigate('/rule-builder');
   };
 
   const features = [
@@ -79,7 +81,7 @@ const LandingPage = () => {
               </motion.button>
               
               <motion.button
-                onClick={() => setCurrentPage('examples')}
+                onClick={() => navigate('/examples')}
                 className="btn-secondary text-lg"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}

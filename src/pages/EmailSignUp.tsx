@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+// import { useNavigate } from 'react-router-dom';
 // import { useAppStore } from '../store';
 import { addEmailToFirestore } from '../utils/firebase';
 import './EmailSignUp.css';
@@ -13,6 +14,7 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // const navigate = useNavigate();
   // const { setCurrentPage } = useAppStore();
 
   // Show status message
@@ -221,7 +223,7 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
             
             {/* Development: Skip to Game */}
             {/* <motion.button
-              onClick={() => setCurrentPage('examples')}
+              onClick={() => navigate('/examples')}
               className="skip-button"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -239,7 +241,7 @@ const EmailSignUp: React.FC<EmailSignUpProps> = ({ onComplete }) => {
               }}
             >
               {/* <button
-                onClick={() => setCurrentPage('admin')}
+                onClick={() => navigate('/admin')}
                 style={{
                   background: 'none',
                   border: 'none',

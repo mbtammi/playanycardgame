@@ -251,7 +251,6 @@ Make it balanced and fun!`;
   executeTemplateAction(
     templateId: string,
     gameState: GameState,
-    rules: GameRules,
     playerId: string,
     parameters: Record<string, any> = {},
     cardIds?: string[],
@@ -326,8 +325,8 @@ Make it balanced and fun!`;
   }
 
   private executeSwapCards(
-    effect: ActionEffect,
-    gameState: GameState,
+    _effect: ActionEffect,
+    _gameState: GameState,
     player: Player,
     targetPlayer: Player | null,
     cardIds?: string[]
@@ -360,8 +359,8 @@ Make it balanced and fun!`;
   }
 
   private executeStealCard(
-    effect: ActionEffect,
-    gameState: GameState,
+    _effect: ActionEffect,
+    _gameState: GameState,
     player: Player,
     targetPlayer: Player | null
   ): string {
@@ -395,7 +394,7 @@ Make it balanced and fun!`;
   }
 
   private executeDiscardCards(
-    effect: ActionEffect,
+    _effect: ActionEffect,
     gameState: GameState,
     player: Player,
     cardIds?: string[]
@@ -418,7 +417,7 @@ Make it balanced and fun!`;
   }
 
   private executePeekCard(
-    effect: ActionEffect,
+    _effect: ActionEffect,
     gameState: GameState,
     player: Player,
     targetPlayer: Player | null,
@@ -438,7 +437,7 @@ Make it balanced and fun!`;
   }
 
   private executeModifyScore(
-    effect: ActionEffect,
+    _effect: ActionEffect,
     gameState: GameState,
     player: Player,
     parameters: Record<string, any>

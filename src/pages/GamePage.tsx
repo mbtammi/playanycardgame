@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getBotAction } from '../engine/bot';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCurrentGame, useAppStore } from '../store';
@@ -12,8 +13,9 @@ import './GamePage.css';
 
 
 const GamePage = () => {
+  const navigate = useNavigate();
   const currentGame = useCurrentGame();
-  const { setCurrentPage, updateGameState } = useAppStore();
+  const { updateGameState } = useAppStore();
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [message, setMessage] = useState<React.ReactNode>(null);
   // Track engine initialized boolean (simple ref instead of state to avoid rerenders)
@@ -128,7 +130,7 @@ const GamePage = () => {
   };
 
   const handleBack = () => {
-    setCurrentPage('examples');
+    navigate('/examples');
   };
 
   // Action handlers

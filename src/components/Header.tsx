@@ -1,11 +1,12 @@
 
 import { motion } from 'framer-motion';
+import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
-import { useAppStore } from '../store';
 import './Header.css';
 
 const Header = () => {
-  const { setCurrentPage } = useAppStore();
+  const navigate = useNavigate();
+  
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
@@ -18,6 +19,8 @@ const Header = () => {
           <motion.div
             className="header-logo"
             whileHover={{ scale: 1.05 }}
+            onClick={() => navigate('/landing')}
+            style={{ cursor: 'pointer' }}
           >
             <div className="header-logo-icon">
               <Sparkles />
@@ -30,14 +33,14 @@ const Header = () => {
 
           {/* Navigation */}
           <nav className="header-nav">
+            <Link to="/examples">
+              Examples
+            </Link>
+            <Link to="/rule-builder">
+              Create Game
+            </Link>
             <a href="#features">
               Features
-            </a>
-            <a href="#how-it-works">
-              How it Works
-            </a>
-            <a href="#games">
-              Example Games
             </a>
           </nav>
 
@@ -46,7 +49,7 @@ const Header = () => {
             className="btn-primary header-cta"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setCurrentPage('game')}
+            onClick={() => navigate('/game')}
           >
             Get Started
           </motion.button>

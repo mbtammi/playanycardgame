@@ -248,7 +248,7 @@ Return ONLY a JSON object with this structure:
     }
   }
 
-  private calculateScore(player: Player, rules: GameRules): number {
+  private calculateScore(player: Player): number {
     // Basic scoring - can be enhanced based on rules
     return player.hand.reduce((score, card) => score + card.value, 0);
   }

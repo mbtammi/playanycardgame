@@ -27,11 +27,11 @@ export const attackHealthGame: GameRules = {
       {
         name: 'action',
         required: true,
-        actions: ['lift', 'attack', 'pass'],
+        actions: ['draw', 'play', 'pass'],
       },
     ],
   },
-  actions: ['lift', 'attack', 'pass'],
+  actions: ['draw', 'play', 'pass'],
   winConditions: [
     {
       type: 'custom',
@@ -39,14 +39,14 @@ export const attackHealthGame: GameRules = {
     },
   ],
   specialRules: [
-    'Each turn: lift 2 cards (health + attack) OR play 1 card to attack',
+    'Each turn: draw 2 cards (health + attack) OR play 1 card to attack',
     'Red cards = health points (hearts/diamonds)',
     'Black cards = attack points (clubs/spades)',
     'Number cards = face value, Face cards = 10, Aces = 11',
     'Attack reduces enemy health by attack value',
     'When health reaches 0, player is eliminated',
-    'Lifting cards is always a valid action',
+    'Drawing cards is always a valid action',
     'Can always pass turn if no other actions work',
   ],
-  aiPrompt: 'This is a combat card game where players alternate between gathering resources (lifting cards) and attacking enemies. Bots should prioritize lifting cards early to build up health/attack, then attack when they have advantage.',
+  aiPrompt: 'This is a combat card game where players alternate between gathering resources (drawing cards) and attacking enemies. Bots should prioritize drawing cards early to build up health/attack, then attack when they have advantage.',
 };

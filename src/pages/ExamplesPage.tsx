@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { predefinedGames, getFeaturedGames } from '../utils/predefinedGames';
 import { Play, Users, Clock, ArrowLeft, Star, Mail } from 'lucide-react';
@@ -6,17 +7,19 @@ import { isDevelopment } from '../utils/environment';
 import './ExamplesPage.css';
 
 const ExamplesPage = () => {
-  const { setCurrentPage, createNewGame } = useAppStore();
+  const navigate = useNavigate();
+  const { createNewGame } = useAppStore();
 
   const handlePlayGame = (gameId: string) => {
     const game = predefinedGames.find(g => g.id === gameId);
     if (game) {
       createNewGame(game.rules);
+      navigate('/game');
     }
   };
 
   const handleBack = () => {
-    setCurrentPage('landing');
+    navigate('/landing');
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -51,7 +54,7 @@ const ExamplesPage = () => {
           {/* Development: Newsletter Preview */}
           {isDevelopment && (
             <button
-              onClick={() => setCurrentPage('newsletter')}
+              onClick={() => navigate('/newsletter')}
               className="dev-newsletter-button"
               title="Preview Newsletter Page"
             >
@@ -208,7 +211,7 @@ const ExamplesPage = () => {
               Create your own custom card game with our AI-powered rule builder
             </p>
             <button
-              onClick={() => setCurrentPage('rule-builder')}
+              onClick={() => navigate('/rule-builder')}
               className="btn-primary examples-cta-button"
             >
               Create Your Own Game
