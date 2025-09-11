@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import SimpleGameCreator from './SimpleGameCreator';
@@ -362,18 +363,27 @@ No explanations, no markdown, just the corrected JSON object.`;
             placeholder="Describe your card game in detail... Be creative! Include how many players, what cards go where on the table, how to win, and any special rules. The AI will make it fun and balanced!"
           />
           <div className="rule-input-buttons">
-            <button
-              className="btn-primary rule-input-start-button"
-              onClick={handleStartGame}
-              disabled={loading}
-            >
-              {loading ? 'Creating Your Game...' : 'Create with AI'}
-            </button>
+              <motion.button
+                className={`btn-primary rule-input-start-button${loading ? ' loading' : ''}`}
+                onClick={handleStartGame}
+                disabled={loading}
+                animate={loading ? { scale: [1, 1.08, 1], boxShadow: [
+                  '0 0 0px #ffd700',
+                  '0 0 16px #ffd700',
+                  '0 0 0px #ffd700'
+                ] } : { scale: 1, boxShadow: '0 0 0px #ffd700' }}
+                transition={loading ? { repeat: Infinity, duration: 1.2, ease: 'easeInOut' } : {}}
+              >
+                {loading ? (
+                  <span className="">Creating Your Game...</span>
+                ) : 'Create with AI'}
+              </motion.button>
           </div>
         </div>
       )}
     </div>
   );
 };
+
 
 export default RuleInput;

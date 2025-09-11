@@ -5,6 +5,9 @@ import LandingPage from './pages/LandingPage';
 import RuleBuilderPage from './pages/RuleBuilderPage';
 import GamePage from './pages/GamePage';
 import ExamplesPage from './pages/ExamplesPage';
+import HowItWorksPage from './pages/HowItWorksPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
 import EmailSignUp from './pages/EmailSignUp';
 import AdminDashboard from './pages/AdminDashboard';
 import { getDefaultPage } from './utils/environment';
@@ -30,6 +33,9 @@ function AppContent() {
           <Route path="/rule-builder" element={<RuleBuilderPage />} />
           <Route path="/game" element={<GamePage />} />
           <Route path="/examples" element={<ExamplesPage />} />
+          <Route path="/how-it-works" element={<HowItWorksPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
           <Route path="/" element={<DefaultRoute />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

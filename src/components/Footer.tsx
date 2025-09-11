@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import FeatureRequestModal from './FeatureRequestModal';
+import CookiePolicyModal from './CookiePolicyModal';
 import './Footer.css';
 
 const Footer = () => {
   const [isFeatureModalOpen, setIsFeatureModalOpen] = useState(false);
+  const [isCookieModalOpen, setIsCookieModalOpen] = useState(false);
 
   return (
     <>
@@ -16,10 +18,10 @@ const Footer = () => {
         <div className="footer-links">
           <h3 className="footer-section-title">Quick Links</h3>
           <ul className="footer-link-list">
-            <li><a href="#" className="footer-link">Create Game</a></li>
-            <li><a href="#" className="footer-link">Example Games</a></li>
-            <li><a href="#" className="footer-link">How It Works</a></li>
-            <li><a href="#" className="footer-link">Features</a></li>
+            <li><a href="/rule-builder" className="footer-link">Create Game</a></li>
+            <li><a href="/examples" className="footer-link">Example Games</a></li>
+            <li><a href="/how-it-works" className="footer-link">How It Works</a></li>
+            <li><a href="/landing" className="footer-link">Features</a></li>
           </ul>
         </div>
 
@@ -37,7 +39,7 @@ const Footer = () => {
               </a>
             </li>
             <li>
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="footer-link">
+              <a href="https://github.com/mbtammi" target="_blank" rel="noopener noreferrer" className="footer-link">
                 <span className="footer-emoji">💻</span> GitHub
               </a>
             </li>
@@ -55,9 +57,16 @@ const Footer = () => {
         <div className="footer-legal">
           <h3 className="footer-section-title">Legal</h3>
           <ul className="footer-link-list">
-            <li><a href="#" className="footer-link">Privacy Policy</a></li>
-            <li><a href="#" className="footer-link">Terms of Service</a></li>
-            <li><a href="#" className="footer-link">Cookie Policy</a></li>
+            <li><a href="/privacy-policy" className="footer-link">Privacy Policy</a></li>
+            <li><a href="/terms-of-service" className="footer-link">Terms of Service</a></li>
+            <li>
+              <button 
+                onClick={() => setIsCookieModalOpen(true)} 
+                className="footer-link footer-button"
+              >
+                Cookie Policy
+              </button>
+            </li>
           </ul>
           <p className="footer-about-text" style={{ marginTop: '15px' }}>
             © 2025 Play Any Card Game. All rights reserved.
@@ -68,6 +77,11 @@ const Footer = () => {
       <FeatureRequestModal 
         isOpen={isFeatureModalOpen} 
         onClose={() => setIsFeatureModalOpen(false)} 
+      />
+      
+      <CookiePolicyModal 
+        isOpen={isCookieModalOpen} 
+        onClose={() => setIsCookieModalOpen(false)} 
       />
     </>
   );
