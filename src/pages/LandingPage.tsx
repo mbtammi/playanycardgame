@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Play, BookOpen, Sparkles, Users, Trophy } from 'lucide-react';
 import './LandingPage.css';
+import AdPlaceholder from '../components/AdPlaceholder';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -69,7 +70,7 @@ const LandingPage = () => {
               Describe your dream card game in plain English and watch AI bring it to life instantly. 
               Play with smart opponents and share with friends.
             </p>
-            
+            <p className="hero-subnote">Join 100+ players experimenting with AI‑generated card games.</p>
             <div className="hero-buttons">
               <motion.button
                 onClick={handlePlayNow}
@@ -94,7 +95,7 @@ const LandingPage = () => {
           </motion.div>
         </section>
 
-        {/* Features and Leaderboard Section */}
+  {/* Features and Leaderboard Section */}
         <section className="features-section">
           <div className="features-container">
             <div className="features-grid">
@@ -180,6 +181,11 @@ const LandingPage = () => {
             </div>
           </div>
         </section>
+
+        {/* Relocated Ad Placeholder (below the fold) */}
+        <div style={{ maxWidth: '1180px', margin: '0 auto', padding: '1rem 1.25rem 0' }}>
+          <AdPlaceholder position="landing-below-fold" />
+        </div>
 
         {/* How It Works Section */}
         <section id="how-it-works" className="how-it-works-section">

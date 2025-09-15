@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import SimpleGameCreator from './SimpleGameCreator';
 import './RuleInput.css';
+import { sanitizeUserIdea } from '../utils/sanitize';
+import { isGenericPrompt, buildFallbackEnrichment } from '../utils/genericFallback';
+import { analytics } from '../utils/analytics';
 
 type CreationMode = 'simple' | 'advanced';
 
@@ -21,8 +24,23 @@ const RuleInput: React.FC = () => {
   const handleStartGame = async () => {
     setLoading(true);
     try {
+      // Sanitize user input first
+      const { sanitized, flags } = sanitizeUserIdea(freeText);
+      const generic = isGenericPrompt(sanitized);
+      analytics.gameCreationAttempt(mode === 'simple' ? 'simple' : 'advanced', generic);
+      if (flags.suspiciousTokens.length) {
+        console.warn('Suspicious tokens detected in user idea:', flags.suspiciousTokens);
+      }
+      if (flags.removedScripts || flags.removedHtml) {
+        console.log('Input contained HTML/script tags which were removed.');
+      }
+      if (sanitized !== freeText) {
+        setFreeText(sanitized); // reflect sanitized text in UI (optional UX decision)
+      }
+
       // Step 1: Generate initial game schema
-      const augmented = buildAugmentedIdea(freeText);
+      const baseSourceText = isGenericPrompt(sanitized) ? buildFallbackEnrichment(sanitized) : sanitized;
+      const augmented = buildAugmentedIdea(baseSourceText);
       const response = await fetch('/api/openai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,6 +75,7 @@ const RuleInput: React.FC = () => {
         if (fixedGame) {
           console.log('✅ Game logic fixed by AI');
           setGameSchema(fixedGame);
+          analytics.gameCreationSuccess(fixedGame.id, fixedGame.name);
           navigate('/game');
         } else {
           throw new Error(`Game logic issues found: ${validationResult.issues.join(', ')}. Please adjust your rules and try again.`);
@@ -65,9 +84,11 @@ const RuleInput: React.FC = () => {
         console.log('✅ Game logic validation passed');
         // Start the game directly
         setGameSchema(filled);
+        analytics.gameCreationSuccess(filled.id, filled.name);
         navigate('/game');
       }
     } catch (err: any) {
+      analytics.gameCreationFailure(err?.message || 'unknown');
       alert('Error creating your game: ' + (err.message || 'Please try rephrasing your rules and try again.'));
     } finally {
       setLoading(false);

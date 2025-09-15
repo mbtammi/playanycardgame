@@ -8,7 +8,7 @@ This is an AI-powered card game creator built with React, TypeScript, and Vite. 
 
 ## Tech Stack
 - **Frontend**: React 18 + TypeScript + Vite
-- **Styling**: NO Tailwind CSS, only normal CSS
+- **Styling**: only normal CSS
 - **Animations**: Framer Motion
 - **State Management**: Zustand
 - **AI Integration**: OpenAI GPT-4 API

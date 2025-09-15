@@ -1,7 +1,7 @@
-
 import type { GameState, GameRules, Player, Card, GameAction, GameActionResult } from '../types';
 import { CardDeck, CardUtils } from './deck';
 import { AIActionTemplateEngine, type ActionTemplate } from './aiActionTemplateEngine';
+import { analytics } from '../utils/analytics';
 
 export class GameEngine {
 
@@ -12,23 +12,56 @@ export class GameEngine {
   private aiActionEngine?: AIActionTemplateEngine; // AI-powered custom actions
   // Memoization cache to avoid recomputing request-game heuristic repeatedly within the same turn
   private cachedIsCardRequest?: { turn: number; value: boolean };
+  private lastProgressTick: number = Date.now();
+  private stagnationCounter: number = 0; // for deadlock detection
 
   constructor(rules: GameRules) {
+    // Heuristic pre-normalization BEFORE creating decks/state
+    const normalized = this.normalizeRules(rules);
     // Initialize primary deck
     this.deck = new CardDeck();
     this.additionalDecks = [];
-    
     // Initialize additional decks if needed
-    const numberOfDecks = rules.setup.numberOfDecks || (rules.setup.multipleDecks ? 2 : 1);
+    const numberOfDecks = normalized.setup.numberOfDecks || (normalized.setup.multipleDecks ? 2 : 1);
     for (let i = 1; i < numberOfDecks; i++) {
       this.additionalDecks.push(new CardDeck());
     }
-    
-    this.state = this.initializeGameState(rules);
-    this.blackjackMode = rules.id === 'blackjack' || rules.name.toLowerCase().includes('blackjack');
+    this.state = this.initializeGameState(normalized);
+    this.blackjackMode = normalized.id === 'blackjack' || normalized.name.toLowerCase().includes('blackjack');
   }
 
-    /**
+  private normalizeRules(rules: GameRules): GameRules {
+    const cloned: any = JSON.parse(JSON.stringify(rules));
+    // 1. Ensure actions include draw if game can stall (sequence/pile or any win condition referencing empty hand)
+    const needsDraw = !!(cloned.description?.toLowerCase().match(/previous card|sequence|build|empty hand|no cards|draw/) ||
+      cloned.winConditions?.some((w: any) => /empty|draw|collect/i.test(w.description || '')));
+    if (!cloned.actions) cloned.actions = [];
+    if (needsDraw && !cloned.actions.includes('draw')) cloned.actions.push('draw');
+    // 2. Ensure turnStructure exists with at least one phase referencing actions
+    if (!cloned.turnStructure || !Array.isArray(cloned.turnStructure.phases) || cloned.turnStructure.phases.length === 0) {
+      cloned.turnStructure = {
+        order: cloned.turnStructure?.order || 'clockwise',
+        phases: [{ name: 'playing', required: true, actions: cloned.actions.slice() }]
+      };
+    }
+    // 3. Normalize asymmetric dealing: if cardsPerPlayerPosition exists but cardsPerPlayer not zero, set to 0
+    if (Array.isArray(cloned.setup?.cardsPerPlayerPosition)) {
+      cloned.setup.cardsPerPlayer = 0;
+    }
+    // 4. If cardsPerPlayerPosition length mismatches potential players, allow partial; engine will only use existing indices.
+    // 5. Table layout normalization: if description hints sequence and layout missing, set sequence with starting card
+    if (!cloned.setup.tableLayout) {
+      const text = (cloned.description || '').toLowerCase();
+      if (/previous card|sequence|build|ascending|descending/.test(text)) {
+        cloned.setup.tableLayout = { type: 'sequence', initialCards: [{ rank: '7', suit: 'hearts' }] };
+      }
+    }
+    // 6. Guarantee deckSize
+    if (!cloned.setup.deckSize) cloned.setup.deckSize = 52;
+    return cloned;
+  }
+
+  /**
    * Create a new GameEngine from a natural language idea using OpenAI API.
    * This is a stub; wire up your OpenAI integration where marked.
    */
@@ -366,6 +399,25 @@ If a player description mentions "I will get X cards and others get Y", use card
     if (this.additionalDecks.length > 0) {
       (this.state as any).additionalDecks = this.additionalDecks.map(deck => deck.getCards());
     }
+
+    // After dealing & initial setup ensure unique IDs across multi-deck scenarios
+    this.ensureUniqueCardIds();
+
+    analytics.gameStarted(this.state.id, this.state.players.length, !!this.state.rules.setup.cardsPerPlayerPosition);
+  }
+
+  private ensureUniqueCardIds() {
+    const seen = new Set<string>();
+    const tag = (c: Card, idx: number) => {
+      if (seen.has(c.id)) {
+        // append incremental suffix to avoid collisions across multiple decks
+        c.id = `${c.id}-${idx}-${Math.random().toString(36).slice(2,6)}`;
+      }
+      seen.add(c.id);
+    };
+    [...this.state.deck, ...this.state.discardPile, ...this.state.communityCards].forEach(tag);
+    this.state.players.forEach(p => p.hand.forEach(tag));
+    this.state.tableZones?.forEach(z => z.cards.forEach(tag));
   }
 
   getCurrentPlayer(): Player | null {
@@ -543,7 +595,7 @@ If a player description mentions "I will get X cards and others get Y", use card
             const hasSix = description.includes('6');
             const hasNine = description.includes('9');
             const mentionsDiffWords = /bigger|smaller|difference|apart|away/.test(description);
-            const explicitPhrase = description.includes('3, 6, or 9') || description.includes('3,6,or 9') || description.includes('3, 6 or 9') || description.includes('3,6,9');
+            const explicitPhrase = description.includes('3,6,or 9') || description.includes('3, 6 or 9') || description.includes('3,6,9');
             const sequenceRuleDetected = (hasThree && hasSix && hasNine && mentionsDiffWords) || explicitPhrase;
             if (sequenceRuleDetected) {
               const lastValue = this.getCardNumericValue(lastCard.rank);
@@ -669,6 +721,7 @@ If a player description mentions "I will get X cards and others get Y", use card
         timestamp: Date.now(),
       };
       this.state.lastAction = result;
+      analytics.actionPerformed(this.state.id, action, playerId, this.state.currentPhase || 'playing');
       // Check for win condition after action
       this.checkWinCondition();
 
@@ -691,6 +744,9 @@ If a player description mentions "I will get X cards and others get Y", use card
           this.nextTurn();
         }
       }
+      // Progress tracking for deadlock detection
+      this.lastProgressTick = Date.now();
+      this.stagnationCounter = 0;
       return result;
     } catch (error) {
       return {
@@ -715,52 +771,73 @@ If a player description mentions "I will get X cards and others get Y", use card
     // CRITICAL ENHANCEMENT: Prevent "No cards left in deck" errors
     if (this.state.deck.length === 0) {
       console.warn(`⚠️ Deck empty! Reshuffling discard pile or creating emergency cards for player ${player.name}`);
-      
-      // Try to reshuffle discard pile back into deck
       if (this.state.discardPile.length > 0) {
-        console.log('🔄 Reshuffling discard pile back into deck');
-        this.state.deck = [...this.state.discardPile];
+        const pool = [...this.state.discardPile];
         this.state.discardPile = [];
-        
-        // Shuffle the deck
-        for (let i = this.state.deck.length - 1; i > 0; i--) {
+        // Fisher–Yates shuffle
+        for (let i = pool.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
-          [this.state.deck[i], this.state.deck[j]] = [this.state.deck[j], this.state.deck[i]];
+          [pool[i], pool[j]] = [pool[j], pool[i]];
         }
+        this.state.deck = pool;
       } else {
-        // Emergency: Create a new card to prevent bot getting stuck
-        console.log('🚨 Creating emergency card to prevent game from breaking');
         const suits: ("hearts" | "diamonds" | "clubs" | "spades")[] = ['hearts', 'diamonds', 'clubs', 'spades'];
         const ranks: ("2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "J" | "Q" | "K" | "A")[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
         const randomSuit = suits[Math.floor(Math.random() * suits.length)];
         const randomRank = ranks[Math.floor(Math.random() * ranks.length)];
-        
-        const emergencyCard: Card = {
+        this.state.deck.push({
           id: `emergency-${Date.now()}-${Math.random()}`,
-          suit: randomSuit,
-          rank: randomRank,
-          value: randomRank === 'A' ? 1 : (randomRank === 'J' || randomRank === 'Q' || randomRank === 'K' ? 10 : parseInt(randomRank)),
-          faceUp: true,
-          selected: false
-        };
-        this.state.deck.push(emergencyCard);
+            suit: randomSuit,
+            rank: randomRank,
+            value: randomRank === 'A' ? 1 : (['J','Q','K'].includes(randomRank) ? 10 : parseInt(randomRank)),
+            faceUp: true,
+            selected: false
+        });
       }
     }
-    
+
     const drawnCard = this.state.deck.shift()!;
-    // If rules specify keeping drawn card, add to hand; else, discard
-    // Allow keepDrawnCard as an optional property (not in type)
+
+    // === GENERALIZED DRAW MODES ===
+    // We infer draw mode dynamically to support thousands of games without explicit config each time.
     const setup: any = this.state.rules?.setup || {};
-    const keepDrawn = setup.keepDrawnCard === true;
-    if (keepDrawn) {
+    const ruleActions: string[] = this.state.rules?.actions || [];
+
+    // Priority order for deciding destination:
+    // 1. Explicit flag keepDrawnCard === true => hand
+    // 2. Explicit flag drawToDiscard === true / action set contains 'draw_and_discard' => discard
+    // 3. Blackjack dealer hit goes to hand
+    // 4. If game mentions "reveal" or action list includes a reveal variant => discard after reveal
+    // 5. Default => hand
+
+    const text = (this.state.rules.description || '').toLowerCase();
+    const keepFlag = setup.keepDrawnCard === true;
+    const discardFlag = setup.drawToDiscard === true || ruleActions.includes('draw_and_discard');
+    const isRevealGame = /reveal|flip and discard|burn card/.test(text) || ruleActions.includes('reveal');
+    const blackjackContext = this.blackjackMode || text.includes('blackjack');
+
+    let destination: 'hand' | 'discard' = 'hand';
+    if (discardFlag) destination = 'discard';
+    else if (keepFlag) destination = 'hand';
+    else if (blackjackContext) destination = 'hand';
+    else if (isRevealGame) destination = 'discard';
+    // else default stays 'hand'
+
+    if (destination === 'hand') {
       player.hand.push(drawnCard);
     } else {
       this.state.discardPile.push(drawnCard);
     }
-    // Store last revealed card for UI and win checking
+
+    // Track last drawn card for UI / win logic
     (this.state as any).lastDrawnCard = drawnCard;
-    
-    // IMPORTANT: Check win condition immediately after draw for draw-based games
+
+    // Potential hook: analytics event (to be wired in later step)
+    if ((window as any).appAnalytics?.logEvent) {
+      try { (window as any).appAnalytics.logEvent('card_drawn', { playerId: player.id, destination }); } catch {}
+    }
+
+    analytics.actionPerformed(this.state.id, 'draw', player.id, this.state.currentPhase || 'playing');
     this.checkWinCondition();
   }
 
@@ -1008,6 +1085,30 @@ If a player description mentions "I will get X cards and others get Y", use card
     if (currentPlayer.isDealer && currentPlayer.type === 'dealer') {
       this.handleAutomaticDealerAction();
     }
+
+    // Deadlock / stagnation heuristic: if multiple full rotations yield no progress (no cards played/drawn), auto-inject draw action
+    this.detectAndMitigateStagnation();
+  }
+
+  private detectAndMitigateStagnation() {
+    const now = Date.now();
+    const elapsed = now - this.lastProgressTick;
+    // If > 45s or > 2 full turns (approx heuristic) without progress, force current player to draw (if possible)
+    if (elapsed > 45000 || this.stagnationCounter > 2) {
+      const current = this.getCurrentPlayer();
+      if (current && this.state.deck.length > 0) {
+        try {
+          this.handleDrawAction(current);
+          analytics.deadlockMitigated(this.state.id);
+          analytics.forcedDraw(this.state.id, current.id);
+          this.lastProgressTick = now;
+          this.stagnationCounter = 0;
+          console.log('[ENGINE] Stagnation mitigated via forced draw');
+        } catch { /* swallow */ }
+      }
+    } else {
+      this.stagnationCounter++;
+    }
   }
 
   /**
@@ -1105,6 +1206,7 @@ If a player description mentions "I will get X cards and others get Y", use card
         if (this.evaluateWinCondition(player, condition)) {
           this.state.gameStatus = 'finished';
           this.state.winner = player.id;
+          analytics.winDetected(this.state.id, player.id, condition.type || condition.description || 'unknown');
           return;
         }
       }
@@ -1584,6 +1686,7 @@ If a player description mentions "I will get X cards and others get Y", use card
     
     // PRIORITY 2: Only check suit-based if explicitly mentioned
     const hasSuitKeys = Object.keys(table).some(key => 
+ 
       ['hearts', 'diamonds', 'clubs', 'spades'].includes(key)
     );
     const explicitlySuitBased = allText.includes('suit') || 

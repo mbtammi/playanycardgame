@@ -52,6 +52,19 @@
   line-height: 1.6;
 }
 
+.hero-subnote {
+  margin: -2rem auto 2.5rem auto; /* pull it a bit closer to description */
+  font-size: 0.85rem;
+  color: #4b5563;
+  letter-spacing: 0.3px;
+  max-width: 32rem;
+  font-weight: 500;
+}
+
+@media (min-width: 768px) {
+  .hero-subnote { font-size: 0.9rem; }
+}
+
 .hero-buttons {
   display: flex;
   flex-direction: column;
