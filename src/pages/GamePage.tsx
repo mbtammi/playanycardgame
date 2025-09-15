@@ -108,24 +108,16 @@ const GamePage = () => {
   const handValues = (currentGame as any)?.handValues || {};
   const busted = (currentGame as any)?.busted || {};
 
-  // Helper: is it this user's turn? (assume player-1 is always the user for now)
+  // Helper: user turn detection (supports bot-only games & determines if any human exists)
   const isUserTurn = () => {
     if (!currentGame) return false;
+    const anyHuman = currentGame.players.find(p => p.type === 'human');
+    if (!anyHuman) return false; // bot-only game: no human actions
     const current = getCurrentPlayer();
-    const result = current && current.type === 'human' && current.id === 'player-1';
-    
-    // Debug logging for action button visibility issues
+    const result = !!current && current.type === 'human';
     if (!result && current) {
-      console.log(`❌ isUserTurn() = false. Current player:`, {
-        id: current.id,
-        name: current.name,
-        type: current.type,
-        expectedId: 'player-1'
-      });
-    } else if (result) {
-      console.log(`✅ isUserTurn() = true. Current player: ${current?.name} (${current?.id})`);
+      console.log('❌ isUserTurn false', { current: { id: current.id, type: current.type } });
     }
-    
     return result;
   };
 
@@ -143,6 +135,14 @@ const GamePage = () => {
       case 'spades': return { symbol: '♠', color: 'text-black' };
       default: return { symbol: '', color: 'text-black' };
     }
+  };
+
+  // Helper for eliminated styling
+  const renderPlayerStatusTag = (p: any) => {
+    if (p.eliminated) {
+      return <span style={{ marginLeft: 6, fontSize: '0.65rem', background: '#991b1b', color: '#fff', padding: '2px 6px', borderRadius: 4 }}>OUT</span>;
+    }
+    return null;
   };
 
   const handleDraw = () => {
@@ -169,7 +169,7 @@ const GamePage = () => {
         w.description && w.description.toLowerCase().includes('black') && w.description.toLowerCase().includes('win')
       );
       
-      if (isBlackCardWinGame) {
+    if (isBlackCardWinGame) {
         if (isBlack) {
           // Instant win!
           setInstantWin({
@@ -210,17 +210,26 @@ const GamePage = () => {
         </span>
       );
     }
+    // NEW: instant win for singlePlayerDrawUntil rank scenario (e.g., draw a 10 of any suit)
+    const drawUntil = currentGame.rules.setup.singlePlayerDrawUntil;
+    if (drawUntil && currentGame.players.length === 1 && lastDrawn) {
+      const targetRank = drawUntil.rank;
+      if (targetRank && lastDrawn.rank === targetRank) {
+        msg = <span>You drew the target {targetRank}! 🎉 You win.</span>;
+      }
+    }
     setMessage(msg);
     updateGameState(nextState);
   };
 
   // Dynamically determine the play action name (default 'play', fallback to first valid action that isn't draw/discard/pass)
   const getPlayActionName = () => {
-    if (!engineRef.current) return 'play';
-    const validActions = engineRef.current.getValidActionsForCurrentPlayer();
-    // Prefer 'play', else first custom action that isn't draw/discard/pass
-    if (validActions.includes('play')) return 'play';
-    return validActions.find(a => !['draw', 'discard', 'pass'].includes(a)) || 'play';
+  if (!engineRef.current) return 'play';
+  const validActions = engineRef.current.getValidActionsForCurrentPlayer();
+  if (validActions.includes('play')) return 'play';
+  // If play is in rules but filtered out, still label button 'play'
+  if (currentGame?.rules.actions.includes('play')) return 'play';
+  return validActions.find(a => !['draw', 'discard', 'pass'].includes(a)) || 'play';
   };
 
   const handlePlay = () => {
@@ -428,7 +437,8 @@ const GamePage = () => {
                             : 'inactive'
                         }`}
                       >
-                        <span className="font-semibold">{player.name}</span>
+                        <span className="font-semibold" style={player.eliminated ? { textDecoration: 'line-through', opacity: 0.6 } : {}}>{player.name}</span>
+                        {renderPlayerStatusTag(player)}
                         <span className="player-chip-count">({player.hand.length} cards)</span>
                       </div>
                     ))}
@@ -573,9 +583,8 @@ const GamePage = () => {
                   }
                 }}
               >
-                {/* Community Cards/Table Area - Enhanced with Dynamic Layout */}
-                {/* Show separate Center Pile only if no structured tableZones present */}
-                {(!((currentGame as any).tableZones && (currentGame as any).tableZones.length)) && currentGame.communityCards && currentGame.communityCards.length > 0 && (
+                {/* Community / Center pile hidden for minimal solo draw-until games */}
+                {!(currentGame.rules.setup.singlePlayerDrawUntil && currentGame.players.length === 1) && (!((currentGame as any).tableZones && (currentGame as any).tableZones.length)) && currentGame.communityCards && currentGame.communityCards.length > 0 && (
                   <div className="flex flex-col items-center mb-12">
                     <div className="font-semibold text-gray-700 mb-4 text-lg">Center Pile</div>
                     <div className="bg-green-100 rounded-xl p-6 min-w-60 min-h-32 flex flex-col items-center justify-center">
@@ -589,8 +598,8 @@ const GamePage = () => {
                   </div>
                 )}
 
-                {/* Card stack (discard pile) for draw-and-reveal games */}
-                {currentGame.discardPile && currentGame.discardPile.length > 0 && !currentGame.communityCards?.length && (
+                {/* Discard pile hidden in minimal solo draw mode */}
+                {!(currentGame.rules.setup.singlePlayerDrawUntil && currentGame.players.length === 1) && currentGame.discardPile && currentGame.discardPile.length > 0 && !currentGame.communityCards?.length && (
                   <div className="flex flex-col items-center mb-8">
                     <div className="font-semibold text-gray-700 mb-2">Drawn Cards</div>
                     <CardStack 
@@ -612,7 +621,15 @@ const GamePage = () => {
                 return show;
               })() && (
                 <>
-                  {engineRef.current?.getValidActionsForCurrentPlayer().map(action => {
+                  {/* Show declared actions even if not currently valid (disabled) for consistency */}
+                  {(() => {
+                    const engine = engineRef.current;
+                    if (!engine) return [] as string[];
+                    const valid = engine.getValidActionsForCurrentPlayer();
+                    const declared = currentGame.rules.actions;
+                    const union = Array.from(new Set([...declared, ...valid]));
+                    return union;
+                  })().map(action => {
                     switch (action) {
                       case 'draw':
                         return (
@@ -640,14 +657,16 @@ const GamePage = () => {
                       default:
                         // If this is the play action, show as Play button
                         if (action === getPlayActionName()) {
+                          const engine = engineRef.current;
+                          const validNow = engine ? engine.getValidActionsForCurrentPlayer().includes('play') : false;
                           return (
                             <button 
                               key={action} 
                               className="btn-primary px-8 py-3 text-lg font-semibold" 
-                              onClick={handlePlay} 
-                              disabled={selectedCards.length === 0}
+                              onClick={validNow ? handlePlay : undefined} 
+                              disabled={!validNow || selectedCards.length === 0}
                             >
-                              🎴 Play Cards ({selectedCards.length})
+                              🎴 Play Cards {validNow ? `(${selectedCards.length})` : '(unavailable)'}
                             </button>
                           );
                         }

@@ -99,6 +99,46 @@ export interface GameRules {
        */
       maxTableAreas?: number;
     };
+    /**
+     * Optional random hand size range (e.g., [3,10]) – each player is dealt random number in range.
+     * Takes precedence over cardsPerPlayer/cardsPerPlayerPosition when present.
+     */
+    randomHandRange?: [number, number];
+    /**
+     * Progressive per-round dealing configuration (e.g., one card per round until condition met)
+     */
+    progressiveDeal?: {
+      cardsPerRound: number; // typically 1
+      until?: 'all_have_rank' | 'any_has_rank' | 'target_value_reached';
+      rank?: Rank; // e.g., 'K' for king games
+      maxRounds?: number; // safety cap
+    };
+    /**
+     * Arithmetic combination target for games where players combine card values to reach / diff to target.
+     * Example: targetValue = 10 means players can play a single card of value 10 OR combination where sums or differences produce 10.
+     */
+    arithmeticTarget?: number;
+    /**
+     * Whether the game is explicitly a no-op sandbox (engine supplies minimal actions).
+     */
+    noopGame?: boolean;
+    /**
+     * Single-player draw-until condition (e.g., get rank '10' or any suit). If rank provided, stop when drawn.
+     */
+    singlePlayerDrawUntil?: {
+      rank?: Rank; // if omitted, any occurrence of numeric value in arithmeticTarget or 10-of-any-suit logic
+      suit?: Suit; // optional suit restriction
+    };
+    /** All cards begin face-up in a single central pile (no hands dealt initially) */
+    allCardsStartInPile?: boolean;
+    /** If true central pile cards are face up */
+    centralPileFaceUp?: boolean;
+    /** Elimination mode: players drawing but must find specific rank or be eliminated */
+    eliminateOnMissRank?: {
+      rank: Rank; // e.g. 'K' for king-or-go-home
+      eliminateIfNotRank?: boolean; // default true
+      winOnRank?: boolean; // default true (first to get rank wins)
+    };
   };
   objective: GameObjective;
   turnStructure: TurnStructure;
@@ -180,6 +220,18 @@ export interface GameState {
   gameStatus: 'waiting' | 'active' | 'paused' | 'finished';
   winner?: string;
   lastAction?: GameActionResult;
+  /**
+   * Dynamic target value for arithmetic combination games (can be set from rules.setup.arithmeticTarget)
+   */
+  targetValue?: number;
+  /**
+   * Tracks rounds of progressive dealing already executed.
+   */
+  progressiveRounds?: number;
+  /**
+   * Cached flag when progressive deal completion achieved.
+   */
+  progressiveComplete?: boolean;
 }
 
 export interface Player {
@@ -191,6 +243,8 @@ export interface Player {
   score: number;
   position: number;
   avatar?: string;
+  /** Player eliminated (cannot take further turns) */
+  eliminated?: boolean;
   /**
    * Dealer-specific properties
    */

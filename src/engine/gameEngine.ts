@@ -1,4 +1,20 @@
+/**
+ * GameEngine (generalized)
+ * Enhancements added:
+ * - Heuristic parsing of natural language rules for:
+ *   - randomHandRange: deal random N cards per player (e.g. "random amount between 3-10")
+ *   - progressiveDeal: per-round 1-card dealing until all players have specified rank (e.g. king game)
+ *   - singlePlayerDrawUntil: solo draw-until-rank games ("playing alone ... until they get 10")
+ *   - arithmeticTarget: combination / difference target (play cards whose sum or abs diffs equal target)
+ *   - noopGame: minimal sandbox where only pass/draw occur
+ * - Progressive bot auto-play loop for bot-only games (safety capped)
+ * - Arithmetic combination validation integrated into generic 'play' action (no game-specific branching)
+ * - Win detection extended for dynamic single-player draw-until scenario
+ */
 import type { GameState, GameRules, Player, Card, GameAction, GameActionResult } from '../types';
+// IR runtime integration (v0 experimental)
+import { IRRuntime } from './ir/runtime';
+import { emitIR } from './ir/emitter';
 import { CardDeck, CardUtils } from './deck';
 import { AIActionTemplateEngine, type ActionTemplate } from './aiActionTemplateEngine';
 import { analytics } from '../utils/analytics';
@@ -14,10 +30,21 @@ export class GameEngine {
   private cachedIsCardRequest?: { turn: number; value: boolean };
   private lastProgressTick: number = Date.now();
   private stagnationCounter: number = 0; // for deadlock detection
+  private minimalSoloDrawMode: boolean = false; // solo draw-until target games (no table UI)
+  // Experimental IR runtime; when present, some actions may route through it
+  private irRuntime?: IRRuntime;
 
   constructor(rules: GameRules) {
     // Heuristic pre-normalization BEFORE creating decks/state
     const normalized = this.normalizeRules(rules);
+    // Emit IR skeleton early (post-normalization)
+    try {
+      const { ir, issues } = emitIR(normalized);
+      (normalized as any)._ir = ir; // attach for debugging
+      if (issues.length) console.warn('[ENGINE][IR][emitter] issues:', issues);
+    } catch (e) {
+      console.warn('[ENGINE][IR] emission failed, falling back to legacy only', e);
+    }
     // Initialize primary deck
     this.deck = new CardDeck();
     this.additionalDecks = [];
@@ -28,6 +55,27 @@ export class GameEngine {
     }
     this.state = this.initializeGameState(normalized);
     this.blackjackMode = normalized.id === 'blackjack' || normalized.name.toLowerCase().includes('blackjack');
+    // Initialize IR runtime from legacy actions as a starting point (non-destructive)
+    try {
+      if ((normalized as any)._ir) {
+        // Build runtime using emitted IR with minimal context adapter
+        this.irRuntime = new IRRuntime({
+          ir: (normalized as any)._ir,
+          currentPlayerId: '',
+          playerStates: {},
+            zones: {},
+          flags: {},
+          phase: 'playing',
+          drawCardToPlayer: () => {},
+          selectCards: () => [],
+          moveCardTo: () => {},
+        });
+      } else if (normalized.actions && normalized.actions.length > 0) {
+        this.irRuntime = IRRuntime.fromLegacy(normalized.actions);
+      }
+    } catch (e) {
+      console.warn('[ENGINE][IR] Failed to bootstrap IR runtime:', e);
+    }
   }
 
   private normalizeRules(rules: GameRules): GameRules {
@@ -58,7 +106,15 @@ export class GameEngine {
     }
     // 6. Guarantee deckSize
     if (!cloned.setup.deckSize) cloned.setup.deckSize = 52;
-    return cloned;
+
+    // 7. Generic modular transforms pipeline (no game-specific heuristics hard-coded here)
+    try {
+      const { applyRuleTransforms } = require('./ruleModules');
+      return applyRuleTransforms(cloned);
+    } catch (e) {
+      console.warn('[ENGINE] ruleModules pipeline unavailable, using raw rules', e);
+      return cloned;
+    }
   }
 
   /**
@@ -226,10 +282,14 @@ If a player description mentions "I will get X cards and others get Y", use card
       this.deck.shuffle();
     }
 
-    // Deal initial hands with support for asymmetric dealing
+    // Deal initial hands with support for asymmetric, random range, or none (progressive later)
     let hands: Card[][];
-    
-    if (this.state.rules.setup.cardsPerPlayerPosition) {
+    const setup = this.state.rules.setup as any;
+    if (setup.randomHandRange) {
+      const [min,max] = setup.randomHandRange;
+      hands = this.state.players.map(()=> this.deck.deal(Math.max(0, Math.min(max, min + Math.floor(Math.random()* (max-min+1))))));
+      console.log('🎲 Random range dealing applied', hands.map(h=>h.length));
+    } else if (this.state.rules.setup.cardsPerPlayerPosition) {
       // Use asymmetric dealing: different cards per player position
       const cardsPerPosition = this.state.rules.setup.cardsPerPlayerPosition;
       hands = [];
@@ -240,6 +300,11 @@ If a player description mentions "I will get X cards and others get Y", use card
         hands.push(playerHand);
       }
       console.log('🂡 Asymmetric dealing applied (cardsPerPlayerPosition):', this.state.rules.setup.cardsPerPlayerPosition, '=> dealt hand sizes:', hands.map(h => h.length));
+    } else if (setup.progressiveDeal) {
+      // Progressive deal: start with zero; will deal per round on turn advance
+      hands = this.state.players.map(()=>[]);
+      (this.state as any).progressiveRounds = 0;
+      console.log('📦 Progressive dealing initialized (no initial cards).');
     } else {
       // Deal specific number of cards per player (symmetric)
       const cardsToDealer = this.state.rules.setup.cardsPerPlayer || 0;
@@ -394,6 +459,41 @@ If a player description mentions "I will get X cards and others get Y", use card
     this.state.gameStatus = 'active';
     this.state.currentPhase = 'playing';
 
+    // Set arithmetic target & other dynamic state
+    if (setup.arithmeticTarget) {
+      (this.state as any).targetValue = setup.arithmeticTarget;
+    }
+
+    // Auto-resolve single-player draw-until config: if only one player & draw-until rank defined, ensure deck not empty
+    if (setup.singlePlayerDrawUntil && this.state.players.length === 1) {
+      if (!this.state.rules.actions.includes('draw')) this.state.rules.actions.push('draw');
+      this.minimalSoloDrawMode = true; // enable minimal mode (hide extra zones)
+    }
+
+    // Central big pile logic:
+    if ((setup as any).allCardsStartInPile) {
+      const pileCards: Card[] = [];
+      while (this.state.deck.length > 0) {
+        const c = this.state.deck.shift()!;
+        c.faceUp = !!(setup as any).centralPileFaceUp;
+        pileCards.push(c);
+      }
+      (this.state as any).table = (this.state as any).table || {};
+      (this.state as any).table.centralPile = pileCards;
+      // Ensure zone for UI representation
+      (this.state as any).tableZones = (this.state as any).tableZones || [];
+      const existing = (this.state as any).tableZones.find((z: any)=>z.id==='central-pile');
+      if (!existing) {
+        (this.state as any).tableZones.push({ id: 'central-pile', type: 'pile', cards: pileCards, faceDown: !((setup as any).centralPileFaceUp) });
+      } else {
+        existing.cards = pileCards;
+      }
+      console.log(`🪆 Initialized central pile with ${pileCards.length} cards (faceUp=${(setup as any).centralPileFaceUp})`);
+    }
+
+    // Determine bot-only mode (no human players & rule text indicates bot-only)
+  // (bot-only detection removed for now; if needed we can reintroduce a flag here)
+
     // Store remaining deck and additional decks
     this.state.deck = this.deck.getCards();
     if (this.additionalDecks.length > 0) {
@@ -444,6 +544,17 @@ If a player description mentions "I will get X cards and others get Y", use card
     return state;
   }
 
+  /** IR debug helper */
+  getIRDebug() {
+    const ir = (this.state.rules as any)._ir;
+    if (!ir) return { available: false };
+    try {
+      return { available: true, ir };
+    } catch (e) {
+      return { available: true, error: String(e) };
+    }
+  }
+
   isValidAction(playerId: string, action: GameAction, cards?: string[]): boolean {
     const player = this.state.players.find(p => p.id === playerId);
     if (!player || !player.isActive) {
@@ -460,7 +571,8 @@ If a player description mentions "I will get X cards and others get Y", use card
 
     // Validate specific actions for built-in types, else allow custom actions
     if (action === 'draw') {
-      return this.state.deck.length > 0;
+          const centralPile = ((this.state as any).table || {}).centralPile as Card[] | undefined;
+          return this.state.deck.length > 0 || !!(centralPile && centralPile.length > 0);
     }
     if (action === 'lift') {
       // Lift is similar to draw but might have different rules
@@ -517,24 +629,32 @@ If a player description mentions "I will get X cards and others get Y", use card
   executeAction(playerId: string, action: GameAction, cardIds?: string[], target?: string ): GameActionResult {
   console.log('[ENGINE v-seq-debug-1] executeAction entry', { action, cardIds: cardIds?.slice(), playerId });
     if (!this.isValidAction(playerId, action, cardIds)) {
-      return {
-        playerId,
-        action,
-        cards: cardIds,
-        target,
-        success: false,
-        message: 'Invalid action',
-        timestamp: Date.now(),
-      };
+      return { playerId, action, target, success: false, message: 'Invalid action', timestamp: Date.now() };
     }
 
     const player = this.state.players.find(p => p.id === playerId)!;
     let message = '';
     try {
+      // Experimental IR routing for simple actions (non-destructive)
+      if (this.irRuntime && ['draw','pass'].includes(action)) {
+        const result = this.irRuntime.executeAction(action);
+        if (result.success) {
+          message = result.message;
+          // Apply legacy side-effects to keep behavior identical for now
+          if (action === 'draw') {
+            this.handleDrawAction(player);
+          } else if (action === 'pass') {
+            this.nextTurn();
+          }
+          const actionResult: GameActionResult = { playerId, action, success: true, message, timestamp: Date.now(), cards: cardIds };
+          this.state.lastAction = actionResult;
+          return actionResult;
+        }
+      }
       // === INTELLIGENT ACTION INTERPRETATION ===
       // The same action word can mean different things in different games
       
-      if (action === 'play') {
+  if (action === 'play') {
         // Interpret "play" action based on game context
         if (this.isCardRequestGame()) {
           // In games like Blackjack, "play" means "request another card"
@@ -620,6 +740,31 @@ If a player description mentions "I will get X cards and others get Y", use card
                 descriptionSnippet: description.slice(0, 120) + (description.length > 120 ? '...' : ''),
                 hasThree, hasSix, hasNine, mentionsDiffWords, explicitPhrase
               });
+            }
+          }
+
+          // Arithmetic combination games (targetValue)
+          const targetValue = (this.state as any).targetValue as number | undefined;
+          if (targetValue && cardIds.length > 0) {
+            // Validate that selected cards can reach target via sum or difference chain
+            const selectedCards = cardIds.map(id => player.hand.find(c=>c.id===id)!).filter(Boolean);
+            const values = selectedCards.map(c=>this.getCardNumericValue(c.rank));
+            let arithmeticOk = false;
+            // Try all sums
+            const sum = values.reduce((a,b)=>a+b,0);
+            if (sum === targetValue) arithmeticOk = true;
+            // Try pairwise differences and chained differences (simple heuristic)
+            if (!arithmeticOk) {
+              if (values.length === 2 && Math.abs(values[0]-values[1]) === targetValue) arithmeticOk = true;
+              if (values.length === 3) {
+                const [a,b,c]=values;
+                if (Math.abs(a-b)===targetValue || Math.abs(a-c)===targetValue || Math.abs(b-c)===targetValue) arithmeticOk = true;
+                if (Math.abs((a+b)-c)===targetValue || Math.abs((a+c)-b)===targetValue || Math.abs((b+c)-a)===targetValue) arithmeticOk = true;
+              }
+            }
+            if (!arithmeticOk) {
+              canPlay = false;
+              validationMessage = `Selected cards do not reach target ${targetValue}`;
             }
           }
 
@@ -768,7 +913,43 @@ If a player description mentions "I will get X cards and others get Y", use card
    * If rules.setup.keepDrawnCard === true, add to hand; else, discard.
    */
   private handleDrawAction(player: Player): void {
-    // CRITICAL ENHANCEMENT: Prevent "No cards left in deck" errors
+    // Central pile first (big pile games)
+    const centralPile: Card[] | undefined = ((this.state as any).table || {}).centralPile;
+    if (centralPile && centralPile.length > 0) {
+      const idx = Math.floor(Math.random()*centralPile.length);
+      const drawnCard = centralPile.splice(idx,1)[0];
+      const setup: any = this.state.rules?.setup || {};
+      const toHand = setup.keepDrawnCard === true; // optional collection variant
+      if (toHand) player.hand.push(drawnCard); else this.state.discardPile.push(drawnCard);
+      (this.state as any).lastDrawnCard = drawnCard;
+      // King (or specified rank) elimination mode when drawing from central pile:
+      if (setup.eliminateOnMissRank) {
+        const targetRank = setup.eliminateOnMissRank.rank;
+        const eliminateIfNotRank = setup.eliminateOnMissRank.eliminateIfNotRank !== false; // default true
+        const winOnRank = setup.eliminateOnMissRank.winOnRank !== false; // default true
+        if (drawnCard.rank === targetRank) {
+          if (winOnRank) {
+            this.state.gameStatus = 'finished';
+            this.state.winner = player.id;
+          }
+        } else if (eliminateIfNotRank) {
+          player.eliminated = true;
+          // If only one non-eliminated player remains they win by default
+          const activeRemaining = this.state.players.filter(p=>!p.eliminated).length;
+            if (activeRemaining === 1) {
+              const last = this.state.players.find(p=>!p.eliminated);
+              if (last) {
+                this.state.gameStatus='finished';
+                this.state.winner = last.id;
+              }
+            }
+        }
+      }
+      analytics.actionPerformed(this.state.id, 'draw', player.id, this.state.currentPhase || 'playing');
+      this.checkWinCondition();
+      return;
+    }
+    // CRITICAL ENHANCEMENT: Prevent "No cards left in deck" errors (legacy deck path)
     if (this.state.deck.length === 0) {
       console.warn(`⚠️ Deck empty! Reshuffling discard pile or creating emergency cards for player ${player.name}`);
       if (this.state.discardPile.length > 0) {
@@ -1060,8 +1241,22 @@ If a player description mentions "I will get X cards and others get Y", use card
     if (this.state.rules.players.requiresDealer) {
       this.handleDealerTurnOrder();
     } else {
-      // Standard turn progression
-      this.state.currentPlayerIndex = (this.state.currentPlayerIndex + 1) % this.state.players.length;
+      // Standard turn progression with elimination skip
+      let safety = 0;
+      const total = this.state.players.length;
+      do {
+        this.state.currentPlayerIndex = (this.state.currentPlayerIndex + 1) % total;
+        safety++;
+        // If all eliminated, break
+        const alive = this.state.players.filter(p=>!p.eliminated);
+        if (alive.length === 0) break;
+        // If only one remains -> they win
+        if (alive.length === 1) {
+          this.state.gameStatus='finished';
+          this.state.winner = alive[0].id;
+          break;
+        }
+      } while (this.state.players[this.state.currentPlayerIndex].eliminated && safety < total+2);
     }
 
     // If we've gone through all players, increment turn (multiplayer)
@@ -1078,12 +1273,60 @@ If a player description mentions "I will get X cards and others get Y", use card
     }
 
     // Set only the new current player as active
-    this.state.players[this.state.currentPlayerIndex].isActive = true;
+    if (this.state.gameStatus === 'active') {
+      this.state.players[this.state.currentPlayerIndex].isActive = true;
+    }
+
+    // Progressive dealing: after completing a full round, if configured and not complete, deal cards
+    const setup: any = this.state.rules.setup;
+    if (setup.progressiveDeal && !(this.state as any).progressiveComplete) {
+      const rounds = ((this.state as any).progressiveRounds||0);
+      // Deal at start of round when currentPlayerIndex==0
+      if (this.state.currentPlayerIndex === 0) {
+        const cardsPerRound = setup.progressiveDeal.cardsPerRound || 1;
+        for (const p of this.state.players) {
+          const dealt = this.state.deck.splice(0, cardsPerRound);
+          p.hand.push(...dealt);
+        }
+        (this.state as any).progressiveRounds = rounds + 1;
+        // Completion check
+        if (setup.progressiveDeal.until === 'all_have_rank' && setup.progressiveDeal.rank) {
+          const allHave = this.state.players.every(p=> p.hand.some(c=>c.rank===setup.progressiveDeal.rank));
+          if (allHave) {
+            (this.state as any).progressiveComplete = true;
+            this.state.gameStatus = 'finished';
+            // winner = all? mark draw? choose first? We'll mark first player for now generically.
+            this.state.winner = this.state.players[0].id;
+          }
+        }
+        if (setup.progressiveDeal.maxRounds && (this.state as any).progressiveRounds >= setup.progressiveDeal.maxRounds) {
+          (this.state as any).progressiveComplete = true;
+        }
+      }
+    }
 
     // Handle automatic dealer actions if it's dealer's turn
     const currentPlayer = this.state.players[this.state.currentPlayerIndex];
     if (currentPlayer.isDealer && currentPlayer.type === 'dealer') {
       this.handleAutomaticDealerAction();
+    }
+
+    // Auto-advance bots (simple loop until a human turn or game finished) for bot-only / multi-bot games
+    const current = this.getCurrentPlayer();
+    if (current && current.type === 'bot' && this.state.gameStatus === 'active') {
+      // Minimal safety cap to avoid infinite loops in silent failure scenarios
+      let safety = 0;
+      const maxAuto = 50;
+      while (this.getCurrentPlayer()?.type === 'bot' && this.state.gameStatus==='active' && safety < maxAuto) {
+        const bot = this.getCurrentPlayer();
+        if (!bot) break;
+        // Choose simple action: prefer play if any card else draw/pass
+        let chosen: GameAction = 'pass';
+        if (this.state.rules.actions.includes('play') && bot.hand.length>0) chosen='play';
+        else if (this.state.rules.actions.includes('draw')) chosen='draw';
+        this.executeAction(bot.id, chosen, bot.hand.length? [bot.hand[0].id]: undefined);
+        safety++;
+      }
     }
 
     // Deadlock / stagnation heuristic: if multiple full rotations yield no progress (no cards played/drawn), auto-inject draw action
@@ -1201,6 +1444,18 @@ If a player description mentions "I will get X cards and others get Y", use card
     console.log('Checking win conditions...');
     const winConditions = this.state.rules.winConditions;
 
+    // Single-player draw-until rank logic (dynamic win) – don't rely on winConditions array
+    const setup: any = this.state.rules.setup;
+    if (setup?.singlePlayerDrawUntil && this.state.players.length === 1) {
+      const p = this.state.players[0];
+      const targetRank = setup.singlePlayerDrawUntil.rank;
+      if (targetRank && p.hand.some(c=>c.rank===targetRank)) {
+        this.state.gameStatus='finished';
+        this.state.winner = p.id;
+        return;
+      }
+    }
+
     for (const condition of winConditions) {
       for (const player of this.state.players) {
         if (this.evaluateWinCondition(player, condition)) {
@@ -1208,6 +1463,21 @@ If a player description mentions "I will get X cards and others get Y", use card
           this.state.winner = player.id;
           analytics.winDetected(this.state.id, player.id, condition.type || condition.description || 'unknown');
           return;
+        }
+      }
+    }
+
+    // Generic specific-card reveal win (description-driven, no hard-coded ranks):
+    const last = (this.state as any).lastDrawnCard as Card | undefined;
+    if (last && this.state.gameStatus === 'active') {
+      const lastDescriptor = `${last.rank} of ${last.suit}`.toLowerCase();
+      const matched = winConditions.some(w => w.type === 'custom' && (w.description||'').toLowerCase().includes(lastDescriptor));
+      if (matched) {
+        const current = this.getCurrentPlayer();
+        if (current) {
+          this.state.gameStatus='finished';
+          this.state.winner = current.id;
+          analytics.winDetected(this.state.id, current.id, 'specific_card_reveal');
         }
       }
     }
@@ -1532,6 +1802,16 @@ If a player description mentions "I will get X cards and others get Y", use card
   } {
     const rules = this.state.rules;
     const table = (this.state as any).table || {};
+    // Ensure central pile represented as zone for UI resilience
+    if (table.centralPile) {
+      (this.state as any).tableZones = (this.state as any).tableZones || [];
+      const pileZone = (this.state as any).tableZones.find((z: any)=>z.id==='central-pile');
+      if (!pileZone) {
+        (this.state as any).tableZones.push({ id: 'central-pile', type: 'pile', cards: table.centralPile, faceDown: false });
+      } else {
+        pileZone.cards = table.centralPile;
+      }
+    }
     const tableZones = (this.state as any).tableZones || [];
     const layout = this.getOptimalTableLayout();
     
@@ -1616,6 +1896,7 @@ If a player description mentions "I will get X cards and others get Y", use card
   private analyzeTableNeed(): boolean {
     const rules = this.state.rules;
     const table = (this.state as any).table || {};
+  if (this.minimalSoloDrawMode) return false; // pure draw-until target does not need table
     
     // 1. If table has cards, it's needed
     if (Object.keys(table).length > 0 && Object.values(table).some((cards: any) => Array.isArray(cards) && cards.length > 0)) {
@@ -2046,14 +2327,36 @@ If a player description mentions "I will get X cards and others get Y", use card
     const validActions: GameAction[] = [];
     
     for (const action of allowedActions) {
+      if (action === 'play') {
+        /*
+         * IMPORTANT UX NOTE:
+         * 'play' validation normally requires specific card IDs. When we call isValidAction without cards
+         * it returns false, causing the Play button to disappear even though the rules list the action.
+         * This confused users (Sequence-style games). We therefore ALWAYS surface 'play' if it's an
+         * allowed action for the phase and the player has at least one card. Actual legality of a chosen
+         * card set is enforced later in executeAction. This keeps the action list aligned with Game Rules.
+         */
+        if (!validActions.includes('play') && player.hand.length > 0) {
+          validActions.push('play');
+        }
+        // Still attempt strict validation in case future logic wants to hide it globally (e.g. stunned state)
+        continue; // Skip normal validation path to avoid duplicate
+      }
       if (this.isValidAction(player.id, action)) {
         validActions.push(action);
       }
     }
 
+    // Ensure draw (and optional skip/pass) always appear in minimal solo draw games
+    if (this.minimalSoloDrawMode) {
+      if (allowedActions.includes('draw') && !validActions.includes('draw')) validActions.push('draw');
+      if (allowedActions.includes('skip') && !validActions.includes('skip')) validActions.push('skip');
+      if (allowedActions.includes('pass') && !validActions.includes('pass')) validActions.push('pass');
+    }
+
     // SPECIAL CASE: 'play' may require specifying cardIds, so isValidAction(false) could hide button.
     // We proactively add 'play' if any card in hand could be legally played under sequence constraints.
-    if (!validActions.includes('play') && allowedActions.includes('play')) {
+  if (!validActions.includes('play') && allowedActions.includes('play')) {
       const desc = (this.state.rules.description || '').toLowerCase();
       const seqPattern = /3\s*,?\s*6\s*,?\s*or\s*9|3\s*,?\s*6\s*,?\s*9/;
       const looksLikeSequence = seqPattern.test(desc);

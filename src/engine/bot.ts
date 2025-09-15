@@ -397,7 +397,7 @@ function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: stri
     }
 
     // ENHANCED: Try actions in priority order with extensive fallback logic
-    const prioritizedActions = prioritizeActions(validActions, gameState, rules);
+  const prioritizedActions = prioritizeActions(validActions, gameState, rules);
     console.log(`📋 Prioritized actions: [${prioritizedActions.join(', ')}]`);
     // SPECIAL CASE: Sequence game (3,6,9 difference) helper – precompute a best playable card
     let sequencePlayableCard: string | null = null;
@@ -422,6 +422,23 @@ function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: stri
       }
     } catch(e){ console.warn('Sequence helper error', e); }
     
+    // Arithmetic combination helper (targetValue)
+    const targetValue = (gameState as any).targetValue as number | undefined;
+    let comboCardIds: string[] | null = null;
+    if (targetValue && bot.hand.length>0) {
+      const vals = bot.hand.map(c=>({ id: c.id, v: getCardNumericValue(c.rank) }));
+      // single card
+      const single = vals.find(c=>c.v===targetValue);
+      if (single) comboCardIds=[single.id];
+      // pairs sum/diff
+      if (!comboCardIds) {
+        for (let i=0;i<vals.length;i++) for (let j=i+1;j<vals.length;j++) {
+          const a=vals[i], b=vals[j];
+          if (a.v + b.v === targetValue || Math.abs(a.v - b.v)===targetValue) { comboCardIds=[a.id,b.id]; break; }
+        }
+      }
+    }
+
     for (let i = 0; i < prioritizedActions.length; i++) {
       const action = prioritizedActions[i];
       console.log(`🔍 Bot trying action ${i + 1}/${prioritizedActions.length}: ${action}`);
@@ -432,6 +449,12 @@ function getUniversalBotMove(gameState: GameState, rules: GameRules, botId: stri
           if (wouldActionBeValidSafe(gameState, rules, botId, 'play', [sequencePlayableCard])) {
             console.log('✅ Bot using sequencePlayableCard for play', sequencePlayableCard);
             return { action: 'play', cardIds: [sequencePlayableCard] };
+          }
+        }
+        // If arithmetic combo prepared and action is play
+        if (action==='play' && comboCardIds) {
+          if (wouldActionBeValidSafe(gameState, rules, botId, 'play', comboCardIds)) {
+            return { action: 'play', cardIds: comboCardIds };
           }
         }
         const result = tryActionWithCardsExtensive(gameState, rules, botId, action, bot);
