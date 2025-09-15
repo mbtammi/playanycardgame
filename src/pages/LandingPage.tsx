@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Play, BookOpen, Sparkles, Users, Trophy } from 'lucide-react';
 import './LandingPage.css';
-import AdPlaceholder from '../components/AdPlaceholder';
+import AdSlot from '../components/AdSlot';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -182,9 +182,9 @@ const LandingPage = () => {
           </div>
         </section>
 
-        {/* Relocated Ad Placeholder (below the fold) */}
+        {/* Monetization Slot (below the fold) */}
         <div style={{ maxWidth: '1180px', margin: '0 auto', padding: '1rem 1.25rem 0' }}>
-          <AdPlaceholder position="landing-below-fold" />
+          <AdSlot slotId="landing_below_fold" />
         </div>
 
         {/* How It Works Section */}

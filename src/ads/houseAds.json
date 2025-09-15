@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "id": "idea-ai", "heading": "Generate a New Game", "subtext": "Try a wild prompt and let the AI build the rules.", "ctaText": "Create now", "url": "/rule-builder" },
+    { "id": "examples", "heading": "Browse Example Games", "subtext": "See playable games others invented with AI.", "ctaText": "View examples", "url": "/examples" },
+    { "id": "feature-req", "heading": "Request a Feature", "subtext": "Help shape the engine for 1000+ rule styles.", "ctaText": "Suggest feature", "url": "#feature-request" }
+  ]
+}

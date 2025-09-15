@@ -187,7 +187,43 @@ Custom win conditions rely on pattern parsing (color, rank, count, empty hand, s
 - Normalization heuristics & deadlock mitigation
 - Generalized draw inference (destination + emergency deck regeneration)
 - Analytics instrumentation for lifecycle & actions
-- Ad placeholder component (layout stable)
+- Modular ad system (`src/ads/`) with dynamic `<AdSlot>` (replaces deprecated static placeholder)
+- Consent management (separate ads vs analytics) with persisted preferences
+- GA4 integration (Measurement ID `G-GQFT1ET7LR`) gated by analytics consent
+- Ad events: `ad_script_loaded`, `ad_impression`, `ad_click` + frequency capping (30s/window per slot)
+
+## 💰 Monetization & Analytics Overview
+The platform now supports a pluggable ad provider architecture:
+
+Providers:
+- House (default) – cycles internal promotion JSON (`houseAds.json`).
+- AdSense (scaffold) – enable by setting `VITE_ADS_PROVIDER=adsense` & `VITE_ADSENSE_CLIENT=pub-...`.
+
+Dynamic Slot Usage:
+```tsx
+import AdSlot from './components/AdSlot';
+<AdSlot slotId="landing_below_fold" />
+```
+
+Consent:
+- Stored in `localStorage(consent_prefs_v1)` with fields `{ ads, analytics }`.
+- Cookie modal allows Reject All / Save / Accept All.
+
+GA4:
+- Lazy loaded only after analytics consent via `initGA()`.
+- Events forwarded automatically inside `track()` if consent granted.
+
+Frequency Capping:
+- Per-slot impression throttled (≥30s) using `ads/frequency.ts`.
+
+House Ad Click & Impression:
+- `ad_impression` fires once per slot window; `ad_click` fires on first click.
+
+To enable AdSense later:
+1. Add publisher ID to `public/ads.txt`.
+2. Set env vars in `.env`.
+3. Map your AdSense slot IDs via `providerMeta` when rendering `<AdSlot>` if needed.
+4. Confirm consent flows before production launch.
 
 ---
 For questions or ideas open an issue or start a discussion. Enjoy inventing card games! ✨

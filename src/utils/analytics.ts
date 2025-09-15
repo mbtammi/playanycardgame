@@ -22,9 +22,16 @@ export function setAnalyticsBackend(custom: AnalyticsBackend) {
   backend = custom;
 }
 
+// Augment track to forward to GA4 if available
+import { gaEvent } from './ga';
+import { hasAnalyticsConsent } from '../ads/consent';
+
 export function track(eventName: string, params?: AnalyticsEventParams) {
   try {
     backend.log(eventName, { ts: Date.now(), ...(params || {}) });
+    if (hasAnalyticsConsent()) {
+      gaEvent(eventName, params || {});
+    }
   } catch (e) {
     // Swallow errors to avoid breaking UX
   }
@@ -58,5 +65,15 @@ export const analytics = {
   },
   socialProofImpression(source: string = 'landing_hero') {
     track('social_proof_impression', { source });
+  },
+  // Ads
+  adScriptLoaded(provider: string) {
+    track('ad_script_loaded', { provider });
+  },
+  adImpression(provider: string, slotId: string, meta?: Record<string, any>) {
+    track('ad_impression', { provider, slotId, ...(meta || {}) });
+  },
+  adClick(provider: string, slotId: string, meta?: Record<string, any>) {
+    track('ad_click', { provider, slotId, ...(meta || {}) });
   }
 };

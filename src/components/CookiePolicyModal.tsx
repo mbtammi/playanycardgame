@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './CookiePolicyModal.css';
+import { getConsent, updateConsent } from '../ads/consent';
 
 interface CookiePolicyModalProps {
   isOpen: boolean;
@@ -8,6 +9,16 @@ interface CookiePolicyModalProps {
 
 const CookiePolicyModal: React.FC<CookiePolicyModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
+
+  const existing = getConsent();
+  const [ads, setAds] = useState(existing.ads);
+  const [analytics, setAnalytics] = useState(existing.analytics);
+
+  useEffect(() => {
+    setAds(existing.ads);
+    setAnalytics(existing.analytics);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   return (
     <div className="cookie-modal-overlay" onClick={onClose}>
@@ -67,9 +78,38 @@ const CookiePolicyModal: React.FC<CookiePolicyModalProps> = ({ isOpen, onClose }
           </div>
         </div>
         
-        <div className="cookie-modal-footer">
-          <button className="cookie-modal-accept" onClick={onClose}>
-            Got it!
+        <div className="cookie-section">
+          <h3>Your Preferences</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <input type="checkbox" checked={analytics} onChange={e => setAnalytics(e.target.checked)} />
+              <span>Allow Analytics</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <input type="checkbox" checked={ads} onChange={e => setAds(e.target.checked)} />
+              <span>Allow Personalized Ads (house + external)</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="cookie-modal-footer" style={{ display: 'flex', gap: '.75rem' }}>
+          <button
+            className="cookie-modal-accept"
+            onClick={() => { setAnalytics(false); setAds(false); updateConsent({ analytics: false, ads: false }); onClose(); }}
+          >
+            Reject All
+          </button>
+          <button
+            className="cookie-modal-accept"
+            onClick={() => { updateConsent({ analytics, ads }); onClose(); }}
+          >
+            Save Preferences
+          </button>
+          <button
+            className="cookie-modal-accept"
+            onClick={() => { setAnalytics(true); setAds(true); updateConsent({ analytics: true, ads: true }); onClose(); }}
+          >
+            Accept All
           </button>
         </div>
       </div>

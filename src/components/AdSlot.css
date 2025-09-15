@@ -1,0 +1,6 @@
+.ad-slot { width:100%; max-width:728px; min-height:90px; margin:1.5rem auto; border:2px dashed #555; border-radius:12px; display:flex; align-items:center; justify-content:center; position:relative; background:linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,255,255,0.02)); backdrop-filter:blur(2px); overflow:hidden; transition:box-shadow .3s ease; }
+.ad-slot:hover { box-shadow:0 0 12px rgba(255,215,0,0.35); }
+.ad-inner { text-align:center; font-family:system-ui,sans-serif; padding:.5rem 1rem; display:flex; flex-direction:column; gap:.25rem; }
+.ad-tag { font-size:.75rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#d4af37; }
+.ad-desc { font-size:.8rem; color:#888; }
+@media (max-width:600px){ .ad-slot { min-height:60px; }}

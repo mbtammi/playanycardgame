@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import RuleInput from '../components/RuleInput';
 import './RuleBuilderPage.css';
+import AdSlot from '../components/AdSlot';
 
 const RuleBuilderPage = () => {
   const navigate = useNavigate();
@@ -63,6 +64,11 @@ const RuleBuilderPage = () => {
         >
           <RuleInput />
         </motion.div>
+
+        {/* Monetization Slot below form */}
+        <div style={{ maxWidth: '980px', margin: '0 auto', paddingTop: '1rem' }}>
+          <AdSlot slotId="rulebuilder_form_bottom" />
+        </div>
 
         {/* Navigation */}
         <motion.div

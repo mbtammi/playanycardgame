@@ -5,6 +5,7 @@ import { predefinedGames, getFeaturedGames } from '../utils/predefinedGames';
 import { Play, Users, Clock, ArrowLeft, Star, Mail } from 'lucide-react';
 import { isDevelopment } from '../utils/environment';
 import './ExamplesPage.css';
+import AdSlot from '../components/AdSlot';
 
 const ExamplesPage = () => {
   const navigate = useNavigate();
@@ -79,7 +80,7 @@ const ExamplesPage = () => {
           </p>
         </motion.div>
 
-        {/* Featured Games */}
+  {/* Featured Games */}
         {featuredGames.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 50 }}
@@ -139,7 +140,12 @@ const ExamplesPage = () => {
           </motion.div>
         )}
 
-        {/* All Games */}
+        {/* Ad Slot after Featured section */}
+        <div style={{ maxWidth: '1140px', margin: '0 auto' }}>
+          <AdSlot slotId="examples_featured_break" />
+        </div>
+
+  {/* All Games */}
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
@@ -195,6 +201,11 @@ const ExamplesPage = () => {
             ))}
           </div>
         </motion.div>
+
+        {/* Inline Ad between All Games and CTA */}
+        <div style={{ maxWidth: '1140px', margin: '1.5rem auto 0' }}>
+          <AdSlot slotId="examples_inline" />
+        </div>
 
         {/* Call to Action */}
         <motion.div
