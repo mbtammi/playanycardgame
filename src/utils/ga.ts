@@ -1,12 +1,14 @@
 // Google Analytics 4 lightweight loader with consent gating.
 import { hasAnalyticsConsent, onConsentChange } from '../ads/consent';
 
-const MEASUREMENT_ID = process.env.GA_TRACKING_ID;
+// Use Vite style env var; fallback to the known ID if not overridden.
+const MEASUREMENT_ID: string | undefined = (import.meta.env.VITE_GA_ID as string) || 'G-GQFT1ET7LR';
 let initialized = false;
 
 declare global { interface Window { dataLayer?: any[]; gtag?: (...args: any[]) => void; } }
 
 function injectScript() {
+  if (!MEASUREMENT_ID) return; // nothing to load
   if (document.getElementById('ga4-lib')) return;
   const s = document.createElement('script');
   s.id = 'ga4-lib';
@@ -17,6 +19,7 @@ function injectScript() {
 
 export function initGA() {
   if (initialized) return;
+  if (!MEASUREMENT_ID) return; // abort silently if not configured
   if (!hasAnalyticsConsent()) return; // wait until consent given
   initialized = true;
   window.dataLayer = window.dataLayer || [];
@@ -31,5 +34,5 @@ onConsentChange(() => { if (!initialized && hasAnalyticsConsent()) initGA(); });
 
 export function gaEvent(name: string, params: Record<string, any>) {
   if (!initialized || !window.gtag) return;
-  window.gtag('event', name, params);
+  try { window.gtag('event', name, params); } catch { /* swallow */ }
 }
