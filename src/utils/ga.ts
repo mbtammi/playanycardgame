@@ -1,7 +1,7 @@
 // Google Analytics 4 lightweight loader with consent gating.
 import { hasAnalyticsConsent, onConsentChange } from '../ads/consent';
 
-const MEASUREMENT_ID = 'G-GQFT1ET7LR';
+const MEASUREMENT_ID = process.env.GA_TRACKING_ID;
 let initialized = false;
 
 declare global { interface Window { dataLayer?: any[]; gtag?: (...args: any[]) => void; } }
