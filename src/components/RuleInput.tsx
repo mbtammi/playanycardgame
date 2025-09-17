@@ -7,6 +7,8 @@ import './RuleInput.css';
 import { sanitizeUserIdea } from '../utils/sanitize';
 import { isGenericPrompt, buildFallbackEnrichment } from '../utils/genericFallback';
 import { analytics } from '../utils/analytics';
+import Lottie from 'lottie-react';
+import aiLoading from '../assets/Ailoadingmodel.json';
 
 type CreationMode = 'simple' | 'advanced';
 
@@ -388,16 +390,23 @@ No explanations, no markdown, just the corrected JSON object.`;
                 className={`btn-primary rule-input-start-button${loading ? ' loading' : ''}`}
                 onClick={handleStartGame}
                 disabled={loading}
-                animate={loading ? { scale: [1, 1.08, 1], boxShadow: [
-                  '0 0 0px #ffd700',
-                  '0 0 16px #ffd700',
-                  '0 0 0px #ffd700'
-                ] } : { scale: 1, boxShadow: '0 0 0px #ffd700' }}
-                transition={loading ? { repeat: Infinity, duration: 1.2, ease: 'easeInOut' } : {}}
+                // animate={loading ? { scale: [1, 1.08, 1], boxShadow: [
+                //   '0 0 0px #ffd700',
+                //   '0 0 16px #ffd700',
+                //   '0 0 0px #ffd700'
+                // ] } : { scale: 1, boxShadow: '0 0 0px #ffd700' }}
+                // transition={loading ? { repeat: Infinity, duration: 2.4, ease: 'easeInOut' } : {}}
               >
-                {loading ? (
-                  <span className="">Creating Your Game...</span>
-                ) : 'Create with AI'}
+                <span className="button-content">
+                  {loading && (
+                    <span className="ai-loading-animation">
+                      <Lottie animationData={aiLoading} loop={true} style={{ width: 90, height: 90, marginBottom: 8 }} />
+                    </span>
+                  )}
+                  <span className="button-label">
+                    Create with AI
+                  </span>
+                </span>
               </motion.button>
           </div>
         </div>

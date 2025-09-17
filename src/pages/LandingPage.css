@@ -144,6 +144,13 @@
   margin-bottom: 1rem;
 }
 
+.colored-text {
+  background: linear-gradient(to left, #347d9c, #6cb335, #ef8512);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+}
+
 .feature-item:hover {
   border-color: #93c5fd;
   transform: translateX(0.25rem);

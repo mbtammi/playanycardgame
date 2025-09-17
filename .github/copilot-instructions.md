@@ -4,6 +4,10 @@ Don't give me the solutions too easy. Make me work for them and explain them cle
 
 # Play Any Card Game - Copilot Instructions
 
+remember no game specific logic can be hardcoded. The AI must be the key part of the game engine. We must have the engine be able to interpret the rules and create the game logic on the fly.
+Reusability and modularity is key.
+Our engine must be able to handle a wide variety of card games with different rules and win conditions.
+
 This is an AI-powered card game creator built with React, TypeScript, and Vite. Users can define rules for any card game, and AI interprets those rules to create playable versions with animations and smart bots. There will be 1000 different games available so rely on the AI to help you create and customize your game. The AI must be a key part since the variability of the games is so large. We might want to have cards on the table in 20 different ways and our engine needs to account for all of them with AI being the coordinator in this. So there can't be much hardcoded values in this application
 
 ## Tech Stack

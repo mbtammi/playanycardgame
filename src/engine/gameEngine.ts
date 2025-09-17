@@ -33,6 +33,7 @@ export class GameEngine {
   private minimalSoloDrawMode: boolean = false; // solo draw-until target games (no table UI)
   // Experimental IR runtime; when present, some actions may route through it
   private irRuntime?: IRRuntime;
+  private spectatorAutoLoop?: { active: boolean; ticks: number };
 
   constructor(rules: GameRules) {
     // Heuristic pre-normalization BEFORE creating decks/state
@@ -55,27 +56,72 @@ export class GameEngine {
     }
     this.state = this.initializeGameState(normalized);
     this.blackjackMode = normalized.id === 'blackjack' || normalized.name.toLowerCase().includes('blackjack');
-    // Initialize IR runtime from legacy actions as a starting point (non-destructive)
+    // Initialize IR runtime (emitted IR preferred) with adapter functions
     try {
       if ((normalized as any)._ir) {
-        // Build runtime using emitted IR with minimal context adapter
         this.irRuntime = new IRRuntime({
           ir: (normalized as any)._ir,
           currentPlayerId: '',
           playerStates: {},
-            zones: {},
+          zones: {},
           flags: {},
-          phase: 'playing',
-          drawCardToPlayer: () => {},
-          selectCards: () => [],
-          moveCardTo: () => {},
+          phase: 'setup',
+          drawCardToPlayer: (pid, dest, faceUp) => {
+            const pl = this.state.players.find(p=>p.id===pid);
+            if (!pl) return;
+            if (this.state.deck.length === 0) return; // simple guard
+            const card = this.state.deck.shift();
+            if (!card) return;
+            if (faceUp) card.faceUp = true;
+            if (dest === 'hand') pl.hand.push(card); else this.state.discardPile.push(card);
+          },
+          selectCards: (selector: any) => {
+            const current = this.state.players[this.state.currentPlayerIndex];
+            if (!current) return [];
+            let pool: Card[] = [];
+            switch (selector?.source) {
+              case 'hand': pool = current.hand; break;
+              case 'discard': pool = this.state.discardPile; break;
+              case 'table': pool = this.state.communityCards; break;
+              default: pool = current.hand; break;
+            }
+            const match = selector?.match || {};
+            const results = pool.filter(c => {
+              if (match.rank) {
+                const r = Array.isArray(match.rank)? match.rank : [match.rank];
+                if (!r.includes(c.rank)) return false;
+              }
+              if (match.suit) {
+                const s = Array.isArray(match.suit)? match.suit : [match.suit];
+                if (!s.includes(c.suit)) return false;
+              }
+              return true;
+            });
+            if (typeof selector?.quantity === 'number') return results.slice(0, selector.quantity);
+            return results;
+          },
+          moveCardTo: (card: any, to: { destination: string; zoneId?: string; faceUp?: boolean }) => {
+            // remove card from any collection it might be in
+            const remove = (arr: Card[]) => { const idx = arr.findIndex(c=>c.id===card.id); if (idx>=0) arr.splice(idx,1); };
+            this.state.players.forEach(p=>remove(p.hand));
+            remove(this.state.communityCards);
+            remove(this.state.discardPile);
+            if (to.faceUp) card.faceUp = true;
+            if (to.destination === 'hand') {
+              const current = this.state.players[this.state.currentPlayerIndex];
+              current?.hand.push(card);
+            } else if (to.destination === 'discard') {
+              this.state.discardPile.push(card);
+            } else if (to.destination === 'zone' && to.zoneId === 'table') {
+              this.state.communityCards.push(card);
+            }
+          }
         });
+        this.irRuntime.runSetup();
       } else if (normalized.actions && normalized.actions.length > 0) {
         this.irRuntime = IRRuntime.fromLegacy(normalized.actions);
       }
-    } catch (e) {
-      console.warn('[ENGINE][IR] Failed to bootstrap IR runtime:', e);
-    }
+    } catch (e) { console.warn('[ENGINE][IR] Failed to bootstrap IR runtime:', e); }
   }
 
   private normalizeRules(rules: GameRules): GameRules {
@@ -107,7 +153,53 @@ export class GameEngine {
     // 6. Guarantee deckSize
     if (!cloned.setup.deckSize) cloned.setup.deckSize = 52;
 
-    // 7. Generic modular transforms pipeline (no game-specific heuristics hard-coded here)
+    // 6b. Pattern-driven augmentation (generic, not game-specific)
+    try {
+      const corpus = [cloned.name, cloned.description, ...(cloned.specialRules||[]), cloned.objective?.description || '']
+        .filter(Boolean).join(' ').toLowerCase();
+
+      // Helper: generic rank normalization (supports faces, A, numbers 1-13, spelled 1-10)
+      const normalizeRank = (raw: string): string | null => {
+        const mapWords: Record<string,string> = {
+          one:'1', two:'2', three:'3', four:'4', five:'5', six:'6', seven:'7', eight:'8', nine:'9', ten:'10',
+          ace:'A', king:'K', queen:'Q', jack:'J'
+        };
+        raw = raw.toLowerCase();
+        if (mapWords[raw]) return mapWords[raw];
+        if (/^(1[0-3]|[1-9])$/.test(raw)) return raw; // 1-13 numeric
+        return null;
+      };
+
+      // Progressive round-based dealing (generic): detect phrases about incremental dealing without assuming specific ranks
+      if (/(one|1) card per round|each round (everyone|all players) (gets|receive)s? (one|1) card|deal one card at a time/.test(corpus)) {
+        cloned.setup.progressiveDeal = cloned.setup.progressiveDeal || { cardsPerRound: 1 };
+        // Optional rank inference if phrase like "until someone gets a king" etc.
+        const rankRef = corpus.match(/until .*? (a |the )?(ace|king|queen|jack|ten|one|two|three|four|five|six|seven|eight|nine|10|[2-9]|11|12|13)/);
+        if (rankRef && !cloned.setup.progressiveDeal.rank) {
+          const maybe = normalizeRank(rankRef[2]);
+            if (maybe) cloned.setup.progressiveDeal.rank = maybe;
+        }
+      }
+
+      // Single-player draw-until rank (solo) pattern: extremely generic (any rank 1-13 or faces) following an "until" with draw verbs
+      if ((cloned.players?.min === 1 && cloned.players?.max === 1) && /until/.test(corpus) && /(draw|lift|pull)/.test(corpus)) {
+        const untilRank = corpus.match(/until.*?(ace|king|queen|jack|ten|one|two|three|four|five|six|seven|eight|nine|10|[2-9]|11|12|13)/);
+        if (untilRank) {
+          const maybe = normalizeRank(untilRank[1]);
+          if (maybe) cloned.setup.singlePlayerDrawUntil = { rank: maybe };
+        }
+      }
+
+      // Bot-only mode detection: phrases like "only bots play" / "bots play automatically" without human mention.
+      if (/only bots play|bots play automatically|watch the bots|observe bots/.test(corpus)) {
+        cloned.players = cloned.players || { min: 1, max: 4 };
+        cloned.players.onlyBots = true;
+      }
+    } catch (err) {
+      console.warn('[ENGINE] pattern augmentation failed', err);
+    }
+
+  // 7. Generic modular transforms pipeline (no game-specific heuristics hard-coded here)
     try {
       const { applyRuleTransforms } = require('./ruleModules');
       return applyRuleTransforms(cloned);
@@ -254,6 +346,18 @@ If a player description mentions "I will get X cards and others get Y", use card
       throw new Error(`Need at least ${this.state.rules.players.min} players to start`);
     }
 
+    const setup = this.state.rules.setup as any;
+
+    // Generic bot-only population (no game-specific logic). If rules.players.onlyBots flag present.
+    if ((this.state.rules.players as any).onlyBots) {
+      if (this.state.players.length === 0) {
+        const minBots = Math.max(this.state.rules.players.min, 1);
+        for (let i=0;i<minBots;i++) this.addPlayer(`Bot ${i+1}`,'bot');
+      } else {
+        this.state.players.forEach(p=>{ if (p.type==='human') p.type='bot'; });
+      }
+    }
+
     // Auto-create dealer if the game requires one and none exists
     const hasDealer = this.state.players.some(p => p.isDealer);
     if (this.state.rules.players.requiresDealer && !hasDealer) {
@@ -282,9 +386,9 @@ If a player description mentions "I will get X cards and others get Y", use card
       this.deck.shuffle();
     }
 
-    // Deal initial hands with support for asymmetric, random range, or none (progressive later)
-    let hands: Card[][];
-    const setup = this.state.rules.setup as any;
+  // Deal initial hands with support for asymmetric, random range, or none (progressive later)
+  let hands: Card[][];
+  console.log('[ENGINE] Pre-deal deck size', this.deck.getCards().length);
     if (setup.randomHandRange) {
       const [min,max] = setup.randomHandRange;
       hands = this.state.players.map(()=> this.deck.deal(Math.max(0, Math.min(max, min + Math.floor(Math.random()* (max-min+1))))));
@@ -327,6 +431,7 @@ If a player description mentions "I will get X cards and others get Y", use card
         (this.state as any).handValues[player.id] = CardUtils.calculateHandValue(player.hand, 'blackjack');
       }
     });
+  console.log('[ENGINE] Post-deal deck size', this.deck.getCards().length);
 
     // ENHANCED: Initialize table zones and community cards for sequence games
   if (this.state.rules.setup.tableLayout?.zones) {
@@ -459,6 +564,11 @@ If a player description mentions "I will get X cards and others get Y", use card
     this.state.gameStatus = 'active';
     this.state.currentPhase = 'playing';
 
+    // Minimal solo draw-until mode indicator (optimizes UI decisions)
+    if (setup.singlePlayerDrawUntil && this.state.players.length === 1 && this.state.rules.actions.every(a=>['draw','pass'].includes(a))) {
+      this.minimalSoloDrawMode = true;
+    }
+
     // Set arithmetic target & other dynamic state
     if (setup.arithmeticTarget) {
       (this.state as any).targetValue = setup.arithmeticTarget;
@@ -504,6 +614,51 @@ If a player description mentions "I will get X cards and others get Y", use card
     this.ensureUniqueCardIds();
 
     analytics.gameStarted(this.state.id, this.state.players.length, !!this.state.rules.setup.cardsPerPlayerPosition);
+
+    // Kick off spectator auto loop if only bots (no blocking UI dependence)
+    const onlyBots = this.state.players.every(p=>p.type==='bot');
+    if (onlyBots) {
+      this.startSpectatorLoop();
+    }
+  }
+
+  /** Generic bot action scoring; intentionally simple & domain-neutral */
+  private chooseBotAction(player: Player): { action: GameAction; cards?: string[] } | null {
+    const valid = this.getValidActionsForCurrentPlayer();
+    if (!valid.length) return null;
+    // Prefer play if any card exists; else draw; else pass fallback
+    if (valid.includes('play') && player.hand.length) {
+      return { action: 'play', cards: [player.hand[0].id] };
+    }
+    if (valid.includes('draw')) return { action: 'draw' };
+    if (valid.includes('discard') && player.hand.length) return { action: 'discard', cards: [player.hand[0].id] };
+    if (valid.includes('pass')) return { action: 'pass' };
+    return { action: valid[0] as GameAction };
+  }
+
+  private startSpectatorLoop() {
+    if (this.spectatorAutoLoop?.active) return;
+    this.spectatorAutoLoop = { active: true, ticks: 0 };
+    const step = () => {
+      if (!this.spectatorAutoLoop?.active) return;
+      if (this.state.gameStatus !== 'active') { this.spectatorAutoLoop.active = false; return; }
+      const current = this.getCurrentPlayer();
+      if (!current) { this.spectatorAutoLoop.active=false; return; }
+      if (current.type==='bot') {
+        const choice = this.chooseBotAction(current);
+        if (choice) {
+          try { this.executeAction(current.id, choice.action, choice.cards); } catch (e) { /* ignore */ }
+        } else {
+          this.executeAction(current.id, 'pass');
+        }
+      }
+      this.spectatorAutoLoop.ticks++;
+      if (this.spectatorAutoLoop.ticks > 500) { console.warn('[ENGINE] spectator loop safety stop'); this.spectatorAutoLoop.active=false; return; }
+      // Adaptive delay: faster early game
+      const delay = Math.max(150, 600 - Math.min(this.spectatorAutoLoop.ticks*2, 400));
+      setTimeout(step, delay);
+    };
+    setTimeout(step, 200);
   }
 
   private ensureUniqueCardIds() {
@@ -635,17 +790,24 @@ If a player description mentions "I will get X cards and others get Y", use card
     const player = this.state.players.find(p => p.id === playerId)!;
     let message = '';
     try {
-      // Experimental IR routing for simple actions (non-destructive)
-      if (this.irRuntime && ['draw','pass'].includes(action)) {
-        const result = this.irRuntime.executeAction(action);
-        if (result.success) {
-          message = result.message;
-          // Apply legacy side-effects to keep behavior identical for now
-          if (action === 'draw') {
-            this.handleDrawAction(player);
-          } else if (action === 'pass') {
-            this.nextTurn();
-          }
+      // IR path: attempt to execute any action defined in emitted IR; synchronize context first
+      if (this.irRuntime) {
+        const ctx = (this.irRuntime as any).getContext?.();
+        if (ctx) {
+          ctx.currentPlayerId = player.id;
+          ctx.phase = this.state.currentPhase || 'playing';
+          ctx.playerStates = this.state.players.reduce((acc, p) => { acc[p.id] = { hand: p.hand, score: p.score, eliminated: (p as any).eliminated }; return acc; }, {} as Record<string, any>);
+          ctx.zones = { table: this.state.communityCards };
+          // Provide selected cards for moveCard selectors
+          if (cardIds && cardIds.length) {
+            ctx.providedSelection = cardIds.map(id => player.hand.find(c=>c.id===id)).filter(Boolean);
+          } else ctx.providedSelection = undefined;
+        }
+        const irResult = this.irRuntime.executeAction(action);
+        if (irResult.success) {
+          message = irResult.message;
+          if (irResult.endTurn) this.nextTurn();
+          this.checkWinCondition();
           const actionResult: GameActionResult = { playerId, action, success: true, message, timestamp: Date.now(), cards: cardIds };
           this.state.lastAction = actionResult;
           return actionResult;
@@ -977,7 +1139,7 @@ If a player description mentions "I will get X cards and others get Y", use card
       }
     }
 
-    const drawnCard = this.state.deck.shift()!;
+  const drawnCard = this.state.deck.shift()!;
 
     // === GENERALIZED DRAW MODES ===
     // We infer draw mode dynamically to support thousands of games without explicit config each time.
@@ -1008,6 +1170,20 @@ If a player description mentions "I will get X cards and others get Y", use card
       player.hand.push(drawnCard);
     } else {
       this.state.discardPile.push(drawnCard);
+    }
+
+    // Early immediate win for solo draw-until target rank (generic, rank stored in setup.singlePlayerDrawUntil.rank)
+    const soloCfg: any = this.state.rules.setup?.singlePlayerDrawUntil ? this.state.rules.setup : undefined;
+    if (this.state.players.length === 1 && soloCfg?.singlePlayerDrawUntil?.rank) {
+      const target = soloCfg.singlePlayerDrawUntil.rank;
+      if (drawnCard.rank === target) {
+        (this.state as any).lastDrawnCard = drawnCard;
+        this.state.gameStatus='finished';
+        this.state.winner = player.id;
+        console.log('[ENGINE] Solo draw-until success on draw', target);
+        analytics.actionPerformed(this.state.id, 'draw', player.id, this.state.currentPhase || 'playing');
+        return; // Skip further processing
+      }
     }
 
     // Track last drawn card for UI / win logic

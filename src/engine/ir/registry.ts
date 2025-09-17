@@ -122,9 +122,15 @@ export class EffectExecutor {
   }
 
   private execMoveCard(eff: any) {
-    const { selectCards, moveCardTo } = this.ctx();
-    const cards = selectCards(eff.selector);
-  cards.forEach((c: any) => moveCardTo(c, eff.to));
+    const { selectCards, moveCardTo, providedSelection } = this.ctx();
+    let cards = selectCards(eff.selector);
+    if ((!cards || cards.length === 0) && Array.isArray(providedSelection) && providedSelection.length > 0) {
+  // Provided-selection bridging: if selector did not yield cards (e.g., generic hand selector with empty match),
+  // use the explicit cards chosen by the user in the UI / engine call. This allows generic emitted actions
+  // (like play/discard) to remain declarative without encoding card IDs into the IR.
+      cards = providedSelection;
+    }
+    cards.forEach((c: any) => moveCardTo(c, eff.to));
   }
 
   private execConditional(eff: any) {

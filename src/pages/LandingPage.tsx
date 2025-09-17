@@ -70,7 +70,7 @@ const LandingPage = () => {
               Describe your dream card game in plain English and watch AI bring it to life instantly. 
               Play with smart opponents and share with friends.
             </p>
-            <p className="hero-subnote">Join 100+ players experimenting with AI‑generated card games.</p>
+            <p className="hero-subnote">Join <span className='colored-text'>100+</span> players experimenting with AI‑generated card games.</p>
             <div className="hero-buttons">
               <motion.button
                 onClick={handlePlayNow}
@@ -79,7 +79,7 @@ const LandingPage = () => {
                 whileTap={{ scale: 0.98 }}
               >
                 <Play size={20} />
-                Start Creating
+                Play Now
               </motion.button>
               
               <motion.button

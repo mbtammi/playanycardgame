@@ -13,6 +13,7 @@ export interface IRExecutionContext {
   winner?: string;
   endTurnFlag?: boolean;
   endGameFlag?: string;
+  providedSelection?: any[]; // transient cards explicitly chosen by user for current action
   // required operations wired from GameEngine
   drawCardToPlayer: (playerId: string, dest: 'hand' | 'discard', faceUp: boolean) => void;
   selectCards: (selector: any, playerRef?: any, zoneId?: string) => any[];
@@ -49,6 +50,9 @@ export class IRRuntime {
   validate() { return validateIR(this.ctx.ir); }
 
   runSetup() { this.effectExecutor.run(this.ctx.ir.setupEffects); }
+
+  // Expose internal context for adapter synchronization (kept lightweight; future: provide setters)
+  getContext() { return this.ctx; }
 
   executeAction(name: string) {
     const spec = this.ctx.ir.actions.find(a => a.name === name);
